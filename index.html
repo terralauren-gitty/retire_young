@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Future You. Rich.</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d0f14;
+    color: #f0f0f0;
+    font-family: 'Trebuchet MS', 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+  }
+
+  #app {
+    width: 100%;
+    max-width: 440px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .glow-bg {
+    position: fixed;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 500px;
+    height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(240,180,41,0.12) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* HEADER */
+  .header {
+    padding: 20px 24px 0;
+    position: relative;
+    z-index: 1;
+  }
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .brand-sub { font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 2px; text-transform: uppercase; }
+  .brand-title { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .brand-title span { color: #f0b429; }
+  .age-badge {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, #f0b429, #ff6b35);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: #0d0f14;
+  }
+
+  /* NAV TABS */
+  .nav-tabs {
+    display: flex; gap: 4px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 14px; padding: 4px;
+  }
+  .tab-btn {
+    flex: 1; background: none; border: none; cursor: pointer;
+    padding: 10px 4px; font-size: 13px; font-weight: 500;
+    border-radius: 12px; transition: all 0.2s;
+    color: rgba(255,255,255,0.5);
+  }
+  .tab-btn.active { background: rgba(240,180,41,0.15); color: #f0b429; }
+
+  /* CONTENT */
+  .content {
+    flex: 1;
+    padding: 20px 24px 110px;
+    display: flex; flex-direction: column; gap: 16px;
+    position: relative; z-index: 1;
+    overflow-y: auto;
+  }
+
+  /* CARDS */
+  .card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px; padding: 20px;
+    animation: slideUp 0.4s ease both;
+  }
+  .card-hero {
+    background: linear-gradient(135deg, rgba(240,180,41,0.15), rgba(255,107,53,0.1));
+    border-color: rgba(240,180,41,0.2);
+  }
+  .card-warn {
+    border-color: rgba(255,107,53,0.4);
+    background: rgba(255,107,53,0.08);
+  }
+  .card-tip {
+    border-color: rgba(78,205,196,0.3);
+  }
+  .card-info {
+    border-color: rgba(240,180,41,0.3);
+    background: rgba(240,180,41,0.06);
+  }
+  .card-nudge {
+    border-color: rgba(255,180,41,0.4);
+    background: rgba(255,180,41,0.06);
+  }
+
+  /* TYPOGRAPHY */
+  .label { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
+  .big-number { font-size: 44px; font-weight: 800; letter-spacing: -2px; color: #f0b429; }
+  .sub-text { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .section-sub { font-size: 13px; color: rgba(255,255,255,0.4); margin-bottom: 20px; }
+
+  /* SCENARIO BUTTONS */
+  .scenarios { display: flex; gap: 8px; margin-top: 16px; }
+  .scenario-btn {
+    flex: 1; padding: 6px 2px; border-radius: 10px; border: none;
+    cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.2s;
+    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);
+  }
+  .scenario-btn.active { background: #f0b429; color: #0d0f14; }
+
+  /* PROGRESS BAR */
+  .progress-track {
+    background: rgba(255,255,255,0.08); border-radius: 99px; height: 8px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 99px;
+    transition: width 0.8s cubic-bezier(.4,0,.2,1);
+  }
+
+  /* SLIDER */
+  .slider {
+    -webkit-appearance: none; width: 100%; height: 4px;
+    border-radius: 99px; background: rgba(255,255,255,0.15); outline: none; margin-top: 12px;
+  }
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px;
+    border-radius: 50%; background: #f0b429; cursor: pointer;
+    box-shadow: 0 0 12px rgba(240,180,41,0.5);
+  }
+  .slider::-moz-range-thumb {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #f0b429; cursor: pointer; border: none;
+  }
+
+  /* STAT GRID */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 16px; }
+  .stat-label { font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
+  .stat-value { font-size: 24px; font-weight: 700; }
+  .stat-hint { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 2px; }
+
+  /* TOGGLE SWITCH */
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; background: rgba(255,255,255,0.04); border-radius: 14px;
+  }
+  .toggle-switch {
+    width: 48px; height: 26px; border-radius: 99px; cursor: pointer;
+    position: relative; transition: background 0.3s; flex-shrink: 0;
+    border: none; outline: none;
+  }
+  .toggle-knob {
+    position: absolute; top: 3px; width: 20px; height: 20px;
+    border-radius: 50%; background: #fff; transition: left 0.3s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  }
+
+  /* MATCH SECTION */
+  .match-section {
+    background: rgba(255,255,255,0.04); border-radius: 16px; padding: 16px;
+  }
+  .match-header {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .match-sliders { margin-top: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .slider-row { display: flex; flex-direction: column; gap: 4px; }
+  .slider-label-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .slider-hints { display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.25); margin-top: 4px; }
+  .match-summary {
+    margin-top: 12px; border-radius: 12px; padding: 10px 14px; font-size: 13px;
+  }
+
+  /* PLAN STEPS */
+  .step-row { display: flex; gap: 14px; margin-bottom: 18px; align-items: flex-start; }
+  .step-circle {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800;
+  }
+  .step-tag {
+    font-size: 11px; padding: 2px 8px; border-radius: 99px; display: inline-block;
+  }
+  .roth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .roth-card { border-radius: 14px; padding: 14px; }
+
+  /* LEARN */
+  .topic-row {
+    display: flex; align-items: center; gap: 12px; padding: 12px 0;
+  }
+  .topic-check {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 12px;
+  }
+  .article-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 14px; cursor: pointer;
+    animation: slideUp 0.4s ease both;
+  }
+
+  /* BOTTOM CTA */
+  .bottom-cta {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 440px;
+    padding: 16px 24px 24px;
+    background: linear-gradient(to top, #0d0f14 60%, transparent);
+    z-index: 10;
+  }
+  .cta-btn {
+    width: 100%; padding: 16px; border-radius: 16px; border: none;
+    background: linear-gradient(135deg, #f0b429, #ff6b35);
+    color: #0d0f14; font-weight: 800; font-size: 16px; cursor: pointer;
+    box-shadow: 0 8px 32px rgba(240,180,41,0.3); letter-spacing: -0.3px;
+    font-family: inherit;
+  }
+
+  /* CONFETTI */
+  .confetti-piece {
+    position: fixed; top: -10px; width: 8px; height: 8px;
+    pointer-events: none; z-index: 999;
+  }
+
+  /* WARN CARD INLINE */
+  .warn-row { display: flex; gap: 10px; align-items: flex-start; }
+  .warn-emoji { font-size: 24px; }
+  .warn-title { font-weight: 700; font-size: 14px; }
+  .warn-desc { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+  .warn-btn {
+    margin-top: 10px; padding: 8px 16px; border-radius: 10px; border: none;
+    background: #ff6b35; color: #fff; font-weight: 700; font-size: 13px;
+    cursor: pointer; font-family: inherit;
+  }
+
+  /* HIDDEN */
+  .hidden { display: none !important; }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+  }
+
+  /* DIVIDER */
+  .divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); }
+</style>
+</head>
+<body>
+
+<div class="glow-bg"></div>
+<div id="confetti-container" style="position:fixed;inset:0;pointer-events:none;z-index:999;"></div>
+
+<div id="app">
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="brand-sub">Future</div>
+        <div class="brand-title">You. <span>Rich.</span></div>
+      </div>
+      <div class="age-badge" id="age-badge">27</div>
+    </div>
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+      <button class="tab-btn" onclick="switchTab('grow')">Grow</button>
+      <button class="tab-btn" onclick="switchTab('plan')">Plan</button>
+      <button class="tab-btn" onclick="switchTab('learn')">Learn</button>
+    </div>
+  </div>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <div id="tab-dashboard" class="content">
+
+    <!-- Hero projection card -->
+    <div class="card card-hero">
+      <div class="label">At <span id="d-retire-age">65</span>, you'll have</div>
+      <div class="big-number" id="d-projected">$0</div>
+      <div class="sub-text">≈ <span id="d-monthly-income">$0</span>/month for 25 years</div>
+      <div class="scenarios">
+        <button class="scenario-btn" onclick="setScenario(0)">Age 55</button>
+        <button class="scenario-btn" onclick="setScenario(1)">Age 62</button>
+        <button class="scenario-btn active" onclick="setScenario(2)">Age 65</button>
+        <button class="scenario-btn" onclick="setScenario(3)">Age 70</button>
+      </div>
+    </div>
+
+    <!-- Current savings -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+        <div>
+          <div class="label">Current Savings</div>
+          <div style="font-size:28px;font-weight:700;" id="d-current-display">$8,500</div>
+        </div>
+        <div style="font-size:28px;" id="d-milestone-emoji">🌱</div>
+      </div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-bottom:6px;" id="d-milestone-label">Next: $10K Club 🔥 — $1,500 away</div>
+      <div class="progress-track">
+        <div class="progress-fill" id="d-milestone-bar" style="width:85%;background:#f0b429;box-shadow:0 0 12px rgba(240,180,41,0.5);"></div>
+      </div>
+      <input type="range" class="slider" min="0" max="200000" step="500" value="8500"
+        oninput="setState('current', this.value); renderAll()" />
+    </div>
+
+    <!-- Match nudge (shown when not getting full match) -->
+    <div class="card card-nudge hidden" id="d-nudge-card">
+      <div class="warn-row">
+        <div class="warn-emoji">💡</div>
+        <div>
+          <div class="warn-title" style="color:#f0b429;">Contribute more to unlock full match</div>
+          <div class="warn-desc" id="d-nudge-text"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match disabled warning -->
+    <div class="card card-warn hidden" id="d-warn-card">
+      <div class="warn-row">
+        <div class="warn-emoji">⚠️</div>
+        <div>
+          <div class="warn-title" style="color:#ff6b35;">Free money sitting on the table</div>
+          <div class="warn-desc" id="d-warn-text"></div>
+          <button class="warn-btn" onclick="setState('matchEnabled', true); renderAll()">Enable Match ↗</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats grid -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Monthly contribution</div>
+        <div class="stat-value" style="color:#4ecdc4;" id="d-monthly-contrib">$400/mo</div>
+        <div class="stat-hint" id="d-match-hint">+$250 match</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Years to grow</div>
+        <div class="stat-value" style="color:#a78bfa;" id="d-years">38 yrs</div>
+        <div class="stat-hint">7% avg return</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== GROW ===================== -->
+  <div id="tab-grow" class="content hidden">
+
+    <div class="card">
+      <div class="section-title">Tune your contributions</div>
+      <div class="section-sub">Slide to see how small changes explode over time</div>
+
+      <!-- Monthly savings slider -->
+      <div class="slider-row" style="margin-bottom:20px;">
+        <div class="slider-label-row">
+          <span style="color:rgba(255,255,255,0.5);">Monthly savings</span>
+          <span style="font-weight:700;color:#f0b429;" id="g-monthly-label">$400/mo</span>
+        </div>
+        <input type="range" class="slider" min="50" max="2000" step="25" value="400"
+          oninput="setState('monthly', this.value); renderAll()" id="g-monthly-slider" />
+        <div class="slider-hints"><span>$50</span><span>$2,000</span></div>
+      </div>
+
+      <!-- Age slider -->
+      <div class="slider-row" style="margin-bottom:20px;">
+        <div class="slider-label-row">
+          <span style="color:rgba(255,255,255,0.5);">Your age</span>
+          <span style="font-weight:700;color:#4ecdc4;" id="g-age-label">27 years old</span>
+        </div>
+        <input type="range" class="slider" min="22" max="45" step="1" value="27"
+          oninput="setState('age', this.value); renderAll()" id="g-age-slider" />
+        <div class="slider-hints"><span>22</span><span>45</span></div>
+      </div>
+
+      <!-- Employer match section -->
+      <div class="match-section">
+        <div class="match-header">
+          <div>
+            <div style="font-size:13px;font-weight:600;">Employer 401(k) Match</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.4);">Customize your company's plan</div>
+          </div>
+          <button class="toggle-switch" id="match-toggle" onclick="toggleMatch()"
+            style="background:#f0b429;">
+            <div class="toggle-knob" id="match-knob" style="left:25px;"></div>
+          </button>
+        </div>
+
+        <div id="match-sliders" class="match-sliders">
+          <!-- Salary -->
+          <div class="slider-row">
+            <div class="slider-label-row">
+              <span style="color:rgba(255,255,255,0.5);">Annual salary</span>
+              <span style="font-weight:700;color:#f0b429;" id="g-salary-label">$75,000</span>
+            </div>
+            <input type="range" class="slider" min="30000" max="300000" step="1000" value="75000"
+              oninput="setState('salary', this.value); renderAll()" id="g-salary-slider" />
+            <div class="slider-hints"><span>$30K</span><span>$300K</span></div>
+          </div>
+
+          <!-- Match % -->
+          <div class="slider-row">
+            <div class="slider-label-row">
+              <span style="color:rgba(255,255,255,0.5);">Employer matches</span>
+              <span style="font-weight:700;color:#4ecdc4;" id="g-matchpct-label">100% of your contribution</span>
+            </div>
+            <input type="range" class="slider" min="10" max="200" step="10" value="100"
+              oninput="setState('matchPct', this.value); renderAll()" id="g-matchpct-slider" />
+            <div class="slider-hints"><span>10%</span><span>200%</span></div>
+          </div>
+
+          <!-- Match cap -->
+          <div class="slider-row">
+            <div class="slider-label-row">
+              <span style="color:rgba(255,255,255,0.5);">Up to</span>
+              <span style="font-weight:700;color:#a78bfa;" id="g-matchcap-label">4% of salary ($3,000/yr)</span>
+            </div>
+            <input type="range" class="slider" min="1" max="10" step="0.5" value="4"
+              oninput="setState('matchCap', parseFloat(this.value)); renderAll()" id="g-matchcap-slider" />
+            <div class="slider-hints"><span>1%</span><span>10%</span></div>
+          </div>
+
+          <!-- Summary pill -->
+          <div class="match-summary" id="g-match-summary"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Power of $50 -->
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;">The power of $50 more/month</div>
+      <div id="g-power-bars"></div>
+    </div>
+
+    <!-- Latte card -->
+    <div class="card card-tip">
+      <div style="font-size:16px;">☕ Skip a latte?</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.4);margin:6px 0 12px;">One $6 coffee per week = $24/month</div>
+      <div style="font-size:28px;font-weight:800;color:#4ecdc4;" id="g-latte">+$0</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.4);margin-top:4px;">at retirement, just from skipping one coffee/week</div>
+    </div>
+  </div>
+
+  <!-- ===================== PLAN ===================== -->
+  <div id="tab-plan" class="content hidden">
+    <div class="card">
+      <div class="section-title">Account Priority Guide</div>
+      <div class="section-sub">Do these in order for maximum growth</div>
+
+      <div class="step-row">
+        <div class="step-circle" style="background:rgba(240,180,41,0.13);border:2px solid #f0b429;color:#f0b429;">1</div>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-weight:700;font-size:14px;">401(k) to match</span>
+            <span class="step-tag" style="background:rgba(240,180,41,0.13);color:#f0b429;">Free money</span>
+          </div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.5;">Contribute enough to get full employer match. This is a guaranteed 50–100% return.</div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-circle" style="background:rgba(78,205,196,0.13);border:2px solid #4ecdc4;color:#4ecdc4;">2</div>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-weight:700;font-size:14px;">Emergency fund</span>
+            <span class="step-tag" style="background:rgba(78,205,196,0.13);color:#4ecdc4;">Safety net</span>
+          </div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.5;">3–6 months of expenses in a high-yield savings account. Don't invest without this.</div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-circle" style="background:rgba(167,139,250,0.13);border:2px solid #a78bfa;color:#a78bfa;">3</div>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-weight:700;font-size:14px;">Max Roth IRA</span>
+            <span class="step-tag" style="background:rgba(167,139,250,0.13);color:#a78bfa;">$7K/yr limit</span>
+          </div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.5;">Up to $7,000/year. Tax-free growth forever — best account for young earners.</div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-circle" style="background:rgba(255,107,53,0.13);border:2px solid #ff6b35;color:#ff6b35;">4</div>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-weight:700;font-size:14px;">Max 401(k)</span>
+            <span class="step-tag" style="background:rgba(255,107,53,0.13);color:#ff6b35;">$23K/yr limit</span>
+          </div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.5;">Up to $23,000/year pre-tax. Reduces your taxable income today.</div>
+        </div>
+      </div>
+      <div class="step-row" style="margin-bottom:0;">
+        <div class="step-circle" style="background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.3);color:rgba(255,255,255,0.4);">5</div>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-weight:700;font-size:14px;">Taxable brokerage</span>
+            <span class="step-tag" style="background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.4);">Overflow</span>
+          </div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.5;">Once maxed above, invest here. No contribution limits, but taxes apply.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;">Roth vs. Traditional?</div>
+      <div class="roth-grid">
+        <div class="roth-card" style="background:rgba(167,139,250,0.07);border:1px solid rgba(167,139,250,0.2);">
+          <div style="font-weight:700;color:#a78bfa;margin-bottom:6px;">Roth IRA</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.5);line-height:1.5;margin-bottom:8px;">Pay taxes NOW, withdraw tax-free later. Best if you'll earn more later.</div>
+          <div style="font-size:11px;color:#a78bfa;">✓ Recommended at 20s–30s</div>
+        </div>
+        <div class="roth-card" style="background:rgba(78,205,196,0.07);border:1px solid rgba(78,205,196,0.2);">
+          <div style="font-weight:700;color:#4ecdc4;margin-bottom:6px;">Traditional</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.5);line-height:1.5;margin-bottom:8px;">Defer taxes NOW, pay later. Best if you're in a high bracket now.</div>
+          <div style="font-size:11px;color:#4ecdc4;">Good if income is high</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== LEARN ===================== -->
+  <div id="tab-learn" class="content hidden">
+    <div class="card">
+      <div style="font-size:16px;font-weight:700;margin-bottom:16px;">Your knowledge level</div>
+      <div class="topic-row" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div class="topic-check" style="background:#f0b429;border:2px solid #f0b429;color:#0d0f14;">✓</div>
+        <span style="font-size:14px;">Compound Interest</span>
+      </div>
+      <div class="topic-row" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div class="topic-check" style="background:#f0b429;border:2px solid #f0b429;color:#0d0f14;">✓</div>
+        <span style="font-size:14px;">Roth IRA Basics</span>
+      </div>
+      <div class="topic-row" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div class="topic-check" style="background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.15);"></div>
+        <span style="font-size:14px;color:rgba(255,255,255,0.4);">Employer Match</span>
+        <span style="margin-left:auto;font-size:11px;color:#f0b429;cursor:pointer;">Learn →</span>
+      </div>
+      <div class="topic-row" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div class="topic-check" style="background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.15);"></div>
+        <span style="font-size:14px;color:rgba(255,255,255,0.4);">Index Funds</span>
+        <span style="margin-left:auto;font-size:11px;color:#f0b429;cursor:pointer;">Learn →</span>
+      </div>
+      <div class="topic-row" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div class="topic-check" style="background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.15);"></div>
+        <span style="font-size:14px;color:rgba(255,255,255,0.4);">Asset Allocation</span>
+        <span style="margin-left:auto;font-size:11px;color:#f0b429;cursor:pointer;">Learn →</span>
+      </div>
+      <div class="topic-row">
+        <div class="topic-check" style="background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.15);"></div>
+        <span style="font-size:14px;color:rgba(255,255,255,0.4);">Tax Loss Harvesting</span>
+        <span style="margin-left:auto;font-size:11px;color:#f0b429;cursor:pointer;">Learn →</span>
+      </div>
+    </div>
+
+    <div class="card card-info">
+      <div style="font-size:22px;margin-bottom:8px;">💡</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px;">Did you know?</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.6);line-height:1.6;">
+        If you invest $400/month from age 25 to 65, you contribute $192,000 of your own money.
+        But at 7% annual returns, you'd have over <strong style="color:#f0b429;">$1 million</strong>.
+        That's <strong style="color:#f0b429;">$800K you never worked for</strong> — it just grew.
+      </div>
+    </div>
+
+    <div class="article-card"><div style="font-size:24px;">📈</div><div style="flex:1;"><div style="font-size:14px;font-weight:600;">What is an index fund?</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">2 min read</div></div><div style="color:rgba(255,255,255,0.3);font-size:18px;">›</div></div>
+    <div class="article-card"><div style="font-size:24px;">🔄</div><div style="flex:1;"><div style="font-size:14px;font-weight:600;">How to roll over a 401(k)</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">3 min read</div></div><div style="color:rgba(255,255,255,0.3);font-size:18px;">›</div></div>
+    <div class="article-card"><div style="font-size:24px;">⚖️</div><div style="flex:1;"><div style="font-size:14px;font-weight:600;">Should I pay off debt first?</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">4 min read</div></div><div style="color:rgba(255,255,255,0.3);font-size:18px;">›</div></div>
+    <div class="article-card"><div style="font-size:24px;">🧮</div><div style="flex:1;"><div style="font-size:14px;font-weight:600;">What's the 4% rule?</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">2 min read</div></div><div style="color:rgba(255,255,255,0.3);font-size:18px;">›</div></div>
+  </div>
+
+  <!-- BOTTOM CTA -->
+  <div class="bottom-cta">
+    <button class="cta-btn" id="cta-btn">Start saving toward $0 →</button>
+  </div>
+</div>
+
+<script>
+  // ── STATE ──────────────────────────────────────────────
+  const state = {
+    age: 27,
+    monthly: 400,
+    current: 8500,
+    matchEnabled: true,
+    salary: 75000,
+    matchPct: 100,
+    matchCap: 4,
+    scenario: 2,
+  };
+
+  const SCENARIOS = [-10, -3, 0, 5];
+  const MILESTONES = [
+    { amount: 1000,    label: "First $1K",        emoji: "🌱" },
+    { amount: 10000,   label: "$10K Club",         emoji: "🔥" },
+    { amount: 50000,   label: "Halfway Hero",      emoji: "⚡" },
+    { amount: 100000,  label: "Six Figures",       emoji: "💎" },
+    { amount: 500000,  label: "Half Millionaire",  emoji: "🚀" },
+    { amount: 1000000, label: "Millionaire",       emoji: "👑" },
+  ];
+
+  function setState(key, val) {
+    state[key] = key === 'matchCap' ? parseFloat(val) : +val;
+  }
+
+  // ── MATH ───────────────────────────────────────────────
+  function compound(monthly, years, rate = 0.07) {
+    if (years <= 0) return 0;
+    const months = years * 12;
+    const r = rate / 12;
+    return monthly * ((Math.pow(1 + r, months) - 1) / r) * (1 + r);
+  }
+
+  function fmtCur(n) {
+    if (n >= 1000000) return `$${(n / 1000000).toFixed(2)}M`;
+    if (n >= 1000)    return `$${(n / 1000).toFixed(0)}K`;
+    return `$${Math.round(n).toLocaleString()}`;
+  }
+
+  function calcDerived() {
+    const retireAge = 65 + SCENARIOS[state.scenario];
+    const years = Math.max(retireAge - state.age, 0);
+    const annualEmployeeContrib = state.monthly * 12;
+    const salaryCapAmt = state.salary * (state.matchCap / 100);
+    const annualMatchAmt = state.matchEnabled
+      ? Math.min(annualEmployeeContrib, salaryCapAmt) * (state.matchPct / 100)
+      : 0;
+    const monthlyMatch = annualMatchAmt / 12;
+    const effectiveMonthly = state.monthly + monthlyMatch;
+    const projected = compound(effectiveMonthly, years) + state.current * Math.pow(1.07, years);
+    const monthlyIncome = projected / (25 * 12);
+    const employeeQualifies = annualEmployeeContrib >= salaryCapAmt;
+    return { retireAge, years, salaryCapAmt, annualMatchAmt, monthlyMatch, effectiveMonthly, projected, monthlyIncome, employeeQualifies };
+  }
+
+  // ── ANIMATED NUMBER ────────────────────────────────────
+  const animTargets = {};
+  function animateTo(elId, target) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (animTargets[elId] !== undefined) cancelAnimationFrame(animTargets[elId + '_raf']);
+    const start = parseFloat(el.dataset.current || 0);
+    animTargets[elId] = target;
+    const startTime = performance.now();
+    function step(now) {
+      const t = Math.min((now - startTime) / 700, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      const val = Math.round(start + (target - start) * ease);
+      el.dataset.current = val;
+      el.textContent = fmtCur(val);
+      if (t < 1) animTargets[elId + '_raf'] = requestAnimationFrame(step);
+    }
+    animTargets[elId + '_raf'] = requestAnimationFrame(step);
+  }
+
+  // ── CONFETTI ───────────────────────────────────────────
+  let lastCurrent = state.current;
+  function maybeConfetti(current) {
+    const crossed = MILESTONES.find(m => m.amount <= current && m.amount > lastCurrent);
+    if (crossed) spawnConfetti();
+    lastCurrent = current;
+  }
+  function spawnConfetti() {
+    const c = document.getElementById('confetti-container');
+    c.innerHTML = '';
+    const colors = ['#f0b429', '#ff6b6b', '#4ecdc4', '#a78bfa'];
+    for (let i = 0; i < 20; i++) {
+      const d = document.createElement('div');
+      d.className = 'confetti-piece';
+      d.style.left = Math.random() * 100 + '%';
+      d.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+      d.style.background = colors[i % 4];
+      const dur = 1 + Math.random();
+      d.style.animation = `fall ${dur}s ease-in forwards`;
+      d.style.animationDelay = Math.random() * 0.5 + 's';
+      c.appendChild(d);
+    }
+    setTimeout(() => c.innerHTML = '', 3000);
+  }
+
+  // ── RENDER ─────────────────────────────────────────────
+  function renderAll() {
+    const d = calcDerived();
+    maybeConfetti(state.current);
+
+    // Sync sliders that aren't the event source (keep in sync across tabs)
+    syncSlider('g-monthly-slider', state.monthly);
+    syncSlider('g-age-slider', state.age);
+    syncSlider('g-salary-slider', state.salary);
+    syncSlider('g-matchpct-slider', state.matchPct);
+    syncSlider('g-matchcap-slider', state.matchCap);
+
+    // AGE BADGE
+    document.getElementById('age-badge').textContent = state.age;
+
+    // ── DASHBOARD ──
+    document.getElementById('d-retire-age').textContent = d.retireAge;
+    animateTo('d-projected', d.projected);
+    document.getElementById('d-monthly-income').textContent = fmtCur(d.monthlyIncome);
+    document.getElementById('d-current-display').textContent = '$' + Math.round(state.current).toLocaleString();
+    document.getElementById('d-monthly-contrib').textContent = `$${state.monthly}/mo`;
+    document.getElementById('d-years').textContent = `${d.years} yrs`;
+    document.getElementById('d-match-hint').textContent =
+      state.matchEnabled && d.monthlyMatch > 0
+        ? `+$${Math.round(d.monthlyMatch)} match`
+        : state.matchEnabled ? 'Increase to unlock match' : 'No match';
+
+    // Milestone
+    const next = MILESTONES.find(m => m.amount > state.current) || MILESTONES[MILESTONES.length - 1];
+    const prev = [...MILESTONES].reverse().find(m => m.amount <= state.current) || { amount: 0 };
+    const pct = Math.min(((state.current - prev.amount) / (next.amount - prev.amount)) * 100, 100);
+    document.getElementById('d-milestone-emoji').textContent =
+      ([...MILESTONES].reverse().find(m => m.amount <= state.current) || { emoji: '🌱' }).emoji;
+    document.getElementById('d-milestone-label').textContent =
+      `Next: ${next.label} ${next.emoji} — ${fmtCur(next.amount - state.current)} away`;
+    document.getElementById('d-milestone-bar').style.width = pct + '%';
+
+    // Cards
+    const nudge = document.getElementById('d-nudge-card');
+    const warn  = document.getElementById('d-warn-card');
+    nudge.classList.add('hidden');
+    warn.classList.add('hidden');
+    if (!state.matchEnabled) {
+      warn.classList.remove('hidden');
+      document.getElementById('d-warn-text').textContent =
+        `Enable your employer match to get up to $${Math.round(d.salaryCapAmt * state.matchPct / 100).toLocaleString()}/yr free.`;
+    } else if (!d.employeeQualifies) {
+      nudge.classList.remove('hidden');
+      document.getElementById('d-nudge-text').textContent =
+        `Your company matches up to ${state.matchCap}% of your salary ($${d.salaryCapAmt.toLocaleString()}/yr). ` +
+        `You're contributing $${(state.monthly * 12).toLocaleString()}/yr — increase by $${Math.round((d.salaryCapAmt - state.monthly * 12) / 12)}/mo to unlock the full match.`;
+    }
+
+    // Scenario buttons
+    document.querySelectorAll('.scenario-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', i === state.scenario);
+    });
+
+    // ── GROW TAB ──
+    document.getElementById('g-monthly-label').textContent = `$${state.monthly}/mo`;
+    document.getElementById('g-age-label').textContent = `${state.age} years old`;
+    document.getElementById('g-salary-label').textContent = `$${state.salary.toLocaleString()}`;
+    document.getElementById('g-matchpct-label').textContent = `${state.matchPct}% of your contribution`;
+    document.getElementById('g-matchcap-label').textContent = `${state.matchCap}% of salary ($${d.salaryCapAmt.toLocaleString()}/yr)`;
+
+    // Match summary
+    const summaryEl = document.getElementById('g-match-summary');
+    if (state.matchEnabled) {
+      document.getElementById('match-sliders').style.display = 'flex';
+      if (d.monthlyMatch > 0) {
+        summaryEl.style.background = 'rgba(240,180,41,0.12)';
+        summaryEl.style.border = '1px solid rgba(240,180,41,0.3)';
+        summaryEl.innerHTML = `🎉 You're getting <strong style="color:#f0b429;">$${Math.round(d.monthlyMatch)}/mo</strong> ($${Math.round(d.annualMatchAmt).toLocaleString()}/yr) free from your employer`;
+      } else {
+        summaryEl.style.background = 'rgba(255,107,53,0.1)';
+        summaryEl.style.border = '1px solid rgba(255,107,53,0.3)';
+        summaryEl.innerHTML = `<span style="color:#ff6b35;">⚠️ Contribute at least $${Math.round(d.salaryCapAmt / 12)}/mo to unlock the full match</span>`;
+      }
+    } else {
+      document.getElementById('match-sliders').style.display = 'none';
+      summaryEl.style.background = '';
+      summaryEl.style.border = '';
+      summaryEl.innerHTML = '';
+    }
+
+    // Power bars
+    const powerColors = ['#f0b429', '#ff6b35', '#a78bfa'];
+    const powerAmounts = [50, 100, 200];
+    const maxExtra = compound(200, d.years);
+    let powerHTML = '';
+    powerAmounts.forEach((extra, i) => {
+      const val = compound(extra, d.years);
+      const barPct = maxExtra > 0 ? Math.min((val / maxExtra) * 100, 100) : 0;
+      powerHTML += `
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+            <span style="color:rgba(255,255,255,0.6);">Extra $${extra}/mo starting today</span>
+            <span style="font-weight:700;color:${powerColors[i]};">+${fmtCur(val)}</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width:${barPct}%;background:${powerColors[i]};box-shadow:0 0 12px ${powerColors[i]}88;"></div>
+          </div>
+        </div>`;
+    });
+    document.getElementById('g-power-bars').innerHTML = powerHTML;
+
+    // Latte
+    document.getElementById('g-latte').textContent = '+' + fmtCur(compound(24, d.years));
+
+    // CTA
+    document.getElementById('cta-btn').textContent = `Start saving toward ${fmtCur(Math.round(d.projected))} →`;
+  }
+
+  function syncSlider(id, val) {
+    const el = document.getElementById(id);
+    if (el && parseFloat(el.value) !== val) el.value = val;
+  }
+
+  // ── TAB SWITCHING ──────────────────────────────────────
+  function switchTab(tab) {
+    ['dashboard', 'grow', 'plan', 'learn'].forEach(t => {
+      document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+    });
+    document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', ['dashboard','grow','plan','learn'][i] === tab);
+    });
+  }
+
+  // ── SCENARIO ───────────────────────────────────────────
+  function setScenario(i) {
+    state.scenario = i;
+    renderAll();
+  }
+
+  // ── MATCH TOGGLE ───────────────────────────────────────
+  function toggleMatch() {
+    state.matchEnabled = !state.matchEnabled;
+    const toggle = document.getElementById('match-toggle');
+    const knob   = document.getElementById('match-knob');
+    toggle.style.background = state.matchEnabled ? '#f0b429' : 'rgba(255,255,255,0.1)';
+    knob.style.left = state.matchEnabled ? '25px' : '3px';
+    renderAll();
+  }
+
+  // ── INIT ───────────────────────────────────────────────
+  renderAll();
+</script>
+</body>
+</html>
