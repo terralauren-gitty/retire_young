@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FutureFi – Investment & Retirement Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:#F5F0E8;font-family:'DM Sans',sans-serif;}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:#B7E4C7;outline:none;cursor:pointer;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#1B4332;cursor:pointer;box-shadow:0 2px 8px rgba(27,67,50,.3);}
+input[type=number]{background:transparent;border:none;border-bottom:2px solid #B7E4C7;color:#1B4332;font-family:'DM Mono',monospace;font-size:15px;width:100%;padding:4px 0;outline:none;}
+input[type=number]:focus{border-bottom-color:#2D6A4F;}
+.ff-tab{transition:all .2s;border:none;cursor:pointer;}
+.ff-tab:hover{background:#EDE6D6 !important;color:#1B4332 !important;}
+.ff-tab.active{background:#1B4332 !important;color:#F5F0E8 !important;}
+.ff-card{transition:box-shadow .2s,transform .2s;}
+.ff-card:hover{box-shadow:0 8px 32px rgba(27,67,50,.12) !important;}
+.ff-btn{transition:all .18s;cursor:pointer;}
+.ff-btn:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(27,67,50,.25) !important;}
+.ff-btn:active{transform:translateY(0);}
+.ff-opt{transition:all .15s;cursor:pointer;}
+.ff-opt:hover{border-color:#2D6A4F !important;background:#EDE6D6 !important;}
+.ff-opt.sel{background:#1B4332 !important;border-color:#1B4332 !important;color:#FAF7F2 !important;}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.ff-animate{animation:slideUp .4s ease both;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#B7E4C7;border-radius:3px;}
+table{border-collapse:collapse;width:100%;}
+button{font-family:'DM Sans',sans-serif;}
+.nudge-close{background:none;border:none;color:#9BA8A3;cursor:pointer;font-size:18px;line-height:1;padding:0 2px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+// ─── DESIGN TOKENS ───
+const T = {
+  cream:"#F5F0E8", warm:"#EDE6D6", paper:"#FAF7F2",
+  forest:"#1B4332", fern:"#2D6A4F", sage:"#52B788",
+  mint:"#B7E4C7", gold:"#D4A017", amber:"#F4A261",
+  ruby:"#C1121F", ink:"#1A1A2E", slate:"#4A5568",
+  mist:"#9BA8A3", white:"#FFFFFF",
+};
+
+// ─── HELPERS ───
+const fmt$ = n => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
+const fmtK = n => n>=1e6?`$${(n/1e6).toFixed(2)}M`:n>=1e3?`$${(n/1e3).toFixed(0)}K`:fmt$(n);
+const fmtPct = n => `${Number(n).toFixed(1)}%`;
+const fv = (mo, yrs, rate) => {
+  const r = rate/100/12;
+  if(r===0) return mo*yrs*12;
+  return mo*((Math.pow(1+r,yrs*12)-1)/r);
+};
+
+// ─── SHARED STYLE OBJECTS ───
+const SH = {
+  h2:{fontFamily:"'Playfair Display'",fontSize:28,color:T.forest,fontWeight:700,marginBottom:4},
+  sub:{fontFamily:"'DM Sans'",fontSize:14,color:T.mist,marginBottom:24},
+  h4:{fontFamily:"'DM Sans'",fontSize:13,fontWeight:700,color:T.slate,marginBottom:14,letterSpacing:.5,textTransform:"uppercase"},
+};
+
+// ─── TABS ───
+const TABS = [
+  {id:"dashboard", emoji:"⚡", label:"Dashboard"},
+  {id:"match",     emoji:"🎯", label:"401k Match"},
+  {id:"projection",emoji:"📈", label:"Projection"},
+  {id:"roth",      emoji:"⚖️",  label:"Roth vs Trad"},
+  {id:"portfolio", emoji:"🧩", label:"Portfolio"},
+  {id:"debt",      emoji:"💳", label:"Debt Guide"},
+  {id:"salary",    emoji:"📊", label:"Salary Sim"},
+  {id:"networth",  emoji:"💰", label:"Net Worth"},
+  {id:"milestones",emoji:"🏆", label:"Milestones"},
+  {id:"lifestyle", emoji:"🌴", label:"Lifestyle"},
+  {id:"risk",      emoji:"🎲", label:"Risk Quiz"},
+  {id:"learn",     emoji:"📚", label:"Learn"},
+];
+
+// ══════════════════════════════════════════
+// PRIMITIVES
+// ══════════════════════════════════════════
+function Card({children, style={}, glow=false, className=""}) {
+  return (
+    <div className={`ff-card ${className}`} style={{
+      background:T.paper, borderRadius:20, padding:24,
+      border:`1px solid ${T.warm}`,
+      boxShadow: glow ? `0 0 0 2px ${T.sage},0 8px 32px rgba(27,67,50,.15)` : "0 2px 12px rgba(27,67,50,.06)",
+      ...style
+    }}>{children}</div>
+  );
+}
+
+function Tag({children, color=T.forest, bg}) {
+  return (
+    <span style={{
+      display:"inline-block", padding:"2px 10px", borderRadius:20,
+      fontSize:11, fontWeight:600, fontFamily:"'DM Sans',sans-serif",
+      color, background: bg||`${color}22`, letterSpacing:.3
+    }}>{children}</span>
+  );
+}
+
+function Slider({label, value, min, max, step=1, onChange, formatVal, hint, color=T.forest}) {
+  const disp = formatVal ? formatVal(value) : value;
+  return (
+    <div style={{marginBottom:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
+        <label style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate,fontWeight:500}}>{label}</label>
+        <span style={{fontFamily:"'DM Mono'",fontSize:14,fontWeight:500,color}}>{disp}</span>
+      </div>
+      <input type="range" min={min} max={max} step={step} value={value}
+        onChange={e=>onChange(Number(e.target.value))} />
+      {hint && <p style={{fontSize:11,color:T.mist,marginTop:4,fontFamily:"'DM Sans'"}}>{hint}</p>}
+    </div>
+  );
+}
+
+function BigStat({label, value, sub, color=T.forest, icon}) {
+  return (
+    <div style={{textAlign:"center"}}>
+      {icon && <div style={{fontSize:26,marginBottom:4}}>{icon}</div>}
+      <div style={{fontFamily:"'Playfair Display'",fontSize:28,fontWeight:700,color,lineHeight:1}}>{value}</div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate,marginTop:4}}>{label}</div>
+      {sub && <div style={{fontFamily:"'DM Mono'",fontSize:10,color:T.mist,marginTop:2}}>{sub}</div>}
+    </div>
+  );
+}
+
+function ScoreRing({score}) {
+  const r=52, c=2*Math.PI*r, dash=(score/100)*c;
+  const col = score>=75?T.sage:score>=50?T.amber:T.ruby;
+  return (
+    <svg width={130} height={130} viewBox="0 0 130 130">
+      <circle cx={65} cy={65} r={r} fill="none" stroke={T.warm} strokeWidth={10}/>
+      <circle cx={65} cy={65} r={r} fill="none" stroke={col} strokeWidth={10}
+        strokeDasharray={`${dash} ${c}`} strokeLinecap="round"
+        transform="rotate(-90 65 65)" style={{transition:"stroke-dasharray 1.2s ease"}}/>
+      <text x={65} y={62} textAnchor="middle" fontFamily="'Playfair Display'" fontSize={26} fontWeight={700} fill={col}>{score}</text>
+      <text x={65} y={77} textAnchor="middle" fontFamily="'DM Sans'" fontSize={11} fill={T.mist}>/ 100</text>
+    </svg>
+  );
+}
+
+function BarChart({data, color=T.sage}) {
+  const max = Math.max(...data.map(d=>d.value), 1);
+  return (
+    <div style={{display:"flex",alignItems:"flex-end",gap:5,height:110}}>
+      {data.map((d,i) => (
+        <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center"}}>
+          <div style={{fontSize:8,color:T.mist,marginBottom:3,fontFamily:"'DM Mono'",whiteSpace:"nowrap"}}>{fmtK(d.value)}</div>
+          <div style={{width:"100%",height:`${(d.value/max)*85}px`,background:`linear-gradient(to top,${color},${color}88)`,borderRadius:"4px 4px 0 0",minHeight:3,transition:"height .8s ease"}}/>
+          <div style={{fontSize:8,color:T.mist,marginTop:4,fontFamily:"'DM Sans'"}}>{d.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Donut({slices, size=140}) {
+  const r=44, c=2*Math.PI*r;
+  let cum=0;
+  const colors=[T.forest,T.sage,T.amber,T.fern,T.gold];
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100">
+      {slices.map((s,i) => {
+        const frac=s.pct/100, dash=frac*c, offset=-(cum/100)*c+c*.25;
+        cum+=s.pct;
+        return <circle key={i} cx={50} cy={50} r={r} fill="transparent"
+          stroke={colors[i%colors.length]} strokeWidth={10}
+          strokeDasharray={`${dash} ${c}`} strokeDashoffset={offset}/>;
+      })}
+      <circle cx={50} cy={50} r={32} fill={T.paper}/>
+    </svg>
+  );
+}
+
+function Nudge({icon, text, action, onAction, color=T.amber}) {
+  const [v,setV]=useState(true);
+  if(!v) return null;
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:12,background:`${color}15`,
+      border:`1px solid ${color}44`,borderRadius:14,padding:"12px 16px",marginBottom:10,fontFamily:"'DM Sans'"}}>
+      <span style={{fontSize:20}}>{icon}</span>
+      <span style={{flex:1,fontSize:13,color:T.ink}}>{text}</span>
+      {action && <button className="ff-btn" onClick={onAction} style={{
+        background:color,color:T.white,border:"none",borderRadius:8,padding:"5px 12px",fontSize:12,fontWeight:600
+      }}>{action}</button>}
+      <button className="nudge-close" onClick={()=>setV(false)}>×</button>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════
+function Dashboard({u, setTab}) {
+  const monthly = (u.salary*(u.contrib+u.match)/100)/12;
+  const yrs = 65-u.age;
+  const balance = fv(monthly, yrs, u.rate);
+  const income = balance*.04/12;
+  const left = u.salary*Math.max(0,u.matchNeeded-u.contrib)/100;
+  const emergNeeded = (u.salary/12)*6;
+  const score = Math.min(100,Math.round(
+    (Math.min(u.contrib,20)/20)*30 +
+    (u.contrib>=u.matchNeeded?20:0) +
+    (u.emergFund>=emergNeeded?20:(u.emergFund/emergNeeded)*20) +
+    (u.age<35?15:10)+10
+  ));
+  const plusFifty = fv(monthly+50, yrs, u.rate);
+
+  return (
+    <div className="ff-animate">
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontFamily:"'Playfair Display'",fontSize:32,color:T.forest,fontWeight:700}}>Good day, {u.name} 👋</h1>
+        <p style={{fontFamily:"'DM Sans'",color:T.mist,marginTop:4}}>Your financial future, simplified.</p>
+      </div>
+
+      {left>500 && <Nudge icon="🚨" color={T.ruby}
+        text={`You're leaving ${fmt$(left)}/yr in free employer money unclaimed`}
+        action="Fix it →" onAction={()=>setTab("match")}/>}
+      {u.emergFund<emergNeeded && <Nudge icon="🛡️" color={T.amber}
+        text={`Emergency fund is ${fmt$(emergNeeded-u.emergFund)} short of 6 months of expenses`}/>}
+      {u.contrib<15&&u.contrib>=u.matchNeeded && <Nudge icon="💡" color={T.fern}
+        text="Increasing contributions by just 1% can add thousands at retirement"
+        action="Simulate →" onAction={()=>setTab("projection")}/>}
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:16,marginBottom:20}}>
+        {[
+          {label:"Projected Balance",value:fmtK(balance),sub:"at age 65",color:T.forest,icon:"🌳"},
+          {label:"Monthly Income",value:fmt$(income),sub:"4% rule",color:T.fern,icon:"📅"},
+          {label:"Savings Rate",value:fmtPct(u.contrib+u.match),sub:"incl. match",color:T.sage,icon:"📊"},
+          {label:"Emergency Fund",value:fmtPct(Math.min(100,(u.emergFund/emergNeeded)*100)),sub:`${fmt$(u.emergFund)} of ${fmt$(emergNeeded)}`,color:u.emergFund>=emergNeeded?T.sage:T.amber,icon:"🛡️"},
+        ].map((s,i)=>(
+          <Card key={i} style={{textAlign:"center"}}><BigStat {...s}/></Card>
+        ))}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+        <Card glow>
+          <h3 style={{fontFamily:"'Playfair Display'",fontSize:18,color:T.forest,marginBottom:16}}>Retirement Score</h3>
+          <div style={{display:"flex",alignItems:"center",gap:20}}>
+            <ScoreRing score={score}/>
+            <div>
+              {score>=70 && <p style={{fontFamily:"'DM Sans'",fontSize:12,color:T.sage,marginBottom:4}}>✔ Great savings rate</p>}
+              {u.contrib>=u.matchNeeded && <p style={{fontFamily:"'DM Sans'",fontSize:12,color:T.sage,marginBottom:4}}>✔ Full match captured</p>}
+              {u.contrib<u.matchNeeded && <p style={{fontFamily:"'DM Sans'",fontSize:12,color:T.ruby,marginBottom:4}}>• Capture employer match</p>}
+              {u.contrib<12 && <p style={{fontFamily:"'DM Sans'",fontSize:12,color:T.amber,marginBottom:4}}>• Aim for 12%+ contribution</p>}
+              {u.emergFund<emergNeeded && <p style={{fontFamily:"'DM Sans'",fontSize:12,color:T.amber,marginBottom:4}}>• Build emergency fund</p>}
+            </div>
+          </div>
+        </Card>
+
+        <Card style={{background:`linear-gradient(145deg,${T.forest},${T.fern})`,border:"none"}}>
+          <h3 style={{fontFamily:"'Playfair Display'",fontSize:18,color:T.mint,marginBottom:16}}>⚡ Future You</h3>
+          <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+            <div>
+              <div style={{color:T.mint,fontSize:11,fontFamily:"'DM Sans'",marginBottom:2}}>TODAY · Age {u.age}</div>
+              <div style={{color:"#FAF7F2",fontFamily:"'DM Mono'",fontSize:14}}>{fmt$((u.salary*u.contrib/100)/12)}/mo</div>
+            </div>
+            <div style={{color:T.sage,fontSize:22}}>→</div>
+            <div>
+              <div style={{color:T.mint,fontSize:11,fontFamily:"'DM Sans'",marginBottom:2}}>AGE 65</div>
+              <div style={{color:"#FAF7F2",fontFamily:"'Playfair Display'",fontSize:22,fontWeight:700}}>{fmtK(balance)}</div>
+              <div style={{color:T.mint,fontSize:11}}>{fmt$(income)}/month</div>
+            </div>
+          </div>
+          <div style={{borderTop:`1px solid ${T.sage}44`,marginTop:14,paddingTop:12}}>
+            <div style={{color:T.mint,fontSize:11}}>If you add $50/month more ↗</div>
+            <div style={{color:T.amber,fontFamily:"'Playfair Display'",fontSize:20,fontWeight:700}}>{fmtK(plusFifty)}</div>
+            <div style={{color:T.mint,fontSize:10}}>+{fmtK(plusFifty-balance)} extra</div>
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <h3 style={{fontFamily:"'Playfair Display'",fontSize:18,color:T.forest,marginBottom:14}}>Optimal Account Order</h3>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {[
+            ["1️⃣","401k Match",true],
+            ["2️⃣","Roth IRA",u.contrib>=u.matchNeeded],
+            ["3️⃣","HSA",u.contrib>=u.matchNeeded],
+            ["4️⃣","Max 401k",false],
+            ["5️⃣","Brokerage",false],
+          ].map(([step,label,done])=>(
+            <div key={step} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",
+              borderRadius:10,border:`1px solid ${done?T.sage:T.warm}`,
+              background:done?`${T.sage}15`:T.cream,flex:"none"}}>
+              <span>{step}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:done?T.forest:T.mist,fontWeight:done?600:400}}>{label}</span>
+              {done && <span style={{color:T.sage}}>✓</span>}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// 401K MATCH OPTIMIZER
+// ══════════════════════════════════════════
+function MatchOptimizer({u, setU}) {
+  const [contrib,setContrib]=useState(u.contrib);
+  const [mRate,setMRate]=useState(100);
+  const [mCap,setMCap]=useState(u.matchNeeded);
+  const [vestYrs,setVestYrs]=useState(3);
+  const [tenure,setTenure]=useState(2);
+
+  const sal=u.salary;
+  const yourAnnual=sal*contrib/100;
+  const matchEarned=sal*(Math.min(contrib,mCap)*mRate/100)/100;
+  const maxMatch=sal*mCap*mRate/100/100;
+  const left=maxMatch-matchEarned;
+  const vestPct=Math.min(100,Math.round((tenure/vestYrs)*100));
+  const vested=matchEarned*(vestPct/100);
+
+  const rows=[2,3,4,5,6,8,10,12,15].map(c=>({
+    c,yours:sal*c/100,
+    match:sal*(Math.min(c,mCap)*mRate/100)/100,
+    full:c>=mCap,
+    get total(){return this.yours+this.match;}
+  }));
+
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>🎯 401k Match Optimizer</h2>
+      <p style={SH.sub}>Never leave free money on the table.</p>
+
+      {left>100?(
+        <div style={{background:`${T.ruby}12`,border:`2px solid ${T.ruby}44`,borderRadius:16,padding:16,marginBottom:20,display:"flex",gap:14,alignItems:"center"}}>
+          <span style={{fontSize:32}}>🚨</span>
+          <div>
+            <div style={{fontFamily:"'Playfair Display'",color:T.ruby,fontSize:20,fontWeight:700}}>
+              You're leaving {fmt$(left)}/year on the table
+            </div>
+            <div style={{fontFamily:"'DM Sans'",color:T.slate,fontSize:13,marginTop:4}}>
+              Increase your contribution to {mCap}% to unlock the full employer match of {fmt$(maxMatch)}/yr.
+            </div>
+          </div>
+        </div>
+      ):(
+        <div style={{background:`${T.sage}18`,border:`1px solid ${T.sage}`,borderRadius:14,padding:14,marginBottom:20}}>
+          <span style={{color:T.forest,fontFamily:"'DM Sans'",fontWeight:600}}>✅ You're capturing your full employer match — great work!</span>
+        </div>
+      )}
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
+        <Card>
+          <h4 style={SH.h4}>Your Settings</h4>
+          <Slider label="Your Contribution %" value={contrib} min={0} max={25} step={.5}
+            onChange={v=>{setContrib(v);setU(p=>({...p,contrib:v}));}} formatVal={fmtPct}/>
+          <Slider label="Employer Match Rate" value={mRate} min={0} max={200} step={25}
+            onChange={setMRate} formatVal={v=>`${v}% of yours`} color={T.fern}/>
+          <Slider label="Match Cap (your %)" value={mCap} min={1} max={10} step={.5}
+            onChange={setMCap} formatVal={fmtPct} color={T.gold}/>
+          <Slider label="Vesting Period (yrs)" value={vestYrs} min={1} max={6}
+            onChange={setVestYrs} formatVal={v=>`${v} yrs`} color={T.amber}/>
+          <Slider label="Your Tenure (yrs)" value={tenure} min={0} max={vestYrs}
+            onChange={setTenure} formatVal={v=>`${v} yrs`} color={T.sage}/>
+        </Card>
+
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <Card>
+            <h4 style={SH.h4}>Breakdown</h4>
+            {[
+              ["Your contribution/yr",fmt$(yourAnnual),T.slate],
+              ["Employer match earned",fmt$(matchEarned),T.fern],
+              [`Vested (${vestPct}%)`,fmt$(vested),T.sage],
+              ["Total invested/yr",fmt$(yourAnnual+matchEarned),T.forest],
+              ["Left on table",fmt$(left),left>0?T.ruby:T.sage],
+            ].map(([l,v,c])=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${T.warm}`}}>
+                <span style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate}}>{l}</span>
+                <span style={{fontFamily:"'DM Mono'",fontSize:13,color:c,fontWeight:600}}>{v}</span>
+              </div>
+            ))}
+          </Card>
+          <Card style={{background:`${T.forest}08`}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,color:T.forest,fontWeight:600}}>
+              💡 Contribute at least <strong>{mCap}%</strong> to capture <strong>{fmt$(maxMatch)}/yr</strong> free money
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      <Card style={{overflowX:"auto"}}>
+        <h4 style={SH.h4}>Contribution Comparison</h4>
+        <table>
+          <thead>
+            <tr>{["Your %","Your $/yr","Match $/yr","Total/yr","Status"].map(h=>(
+              <th key={h} style={{textAlign:"left",color:T.mist,padding:"8px 12px",borderBottom:`1px solid ${T.warm}`,fontWeight:500,fontSize:13}}>{h}</th>
+            ))}</tr>
+          </thead>
+          <tbody>
+            {rows.map(r=>(
+              <tr key={r.c} style={{background:r.c===contrib?`${T.mint}30`:"transparent"}}>
+                <td style={{padding:"10px 12px",color:r.c===contrib?T.forest:T.slate,fontWeight:r.c===contrib?700:400,fontSize:13}}>{r.c}%</td>
+                <td style={{padding:"10px 12px",fontFamily:"'DM Mono'",color:T.fern,fontSize:13}}>{fmt$(r.yours)}</td>
+                <td style={{padding:"10px 12px",fontFamily:"'DM Mono'",color:T.sage,fontSize:13}}>{fmt$(r.match)}</td>
+                <td style={{padding:"10px 12px",fontFamily:"'DM Mono'",color:T.forest,fontWeight:700,fontSize:13}}>{fmt$(r.total)}</td>
+                <td style={{padding:"10px 12px"}}><Tag color={r.full?T.fern:T.amber}>{r.full?"✓ Full match":"Partial"}</Tag></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// RETIREMENT PROJECTION
+// ══════════════════════════════════════════
+function Projection({u}) {
+  const [age,setAge]=useState(u.age);
+  const [sal,setSal]=useState(u.salary);
+  const [contrib,setContrib]=useState(u.contrib);
+  const [match,setMatch]=useState(u.match);
+  const [rate,setRate]=useState(u.rate);
+  const [retAge,setRetAge]=useState(65);
+
+  const yrs=retAge-age;
+  const monthly=(sal*(contrib+match)/100)/12;
+  const balance=fv(monthly,yrs,rate);
+  const income=balance*.04/12;
+  const plus50=fv(monthly+50,yrs,rate);
+  const plus100=fv(monthly+100,yrs,rate);
+  const plus1=fv(monthly+sal*.01/12,yrs,rate);
+
+  const steps=Math.max(1,Math.floor(yrs/10));
+  const chartData=[];
+  for(let y=0;y<=yrs;y+=steps){chartData.push({label:`${age+y}`,value:fv(monthly,y,rate)});}
+  if(chartData[chartData.length-1].label!==`${retAge}`) chartData.push({label:`${retAge}`,value:balance});
+
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>📈 Retirement Projection</h2>
+      <p style={SH.sub}>Watch compound interest work its magic.</p>
+      <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:20}}>
+        <Card>
+          <h4 style={SH.h4}>Inputs</h4>
+          <Slider label="Current Age" value={age} min={18} max={60} onChange={setAge} formatVal={v=>`${v} yrs`}/>
+          <Slider label="Annual Salary" value={sal} min={30000} max={400000} step={5000} onChange={setSal} formatVal={fmt$} color={T.gold}/>
+          <Slider label="Contribution %" value={contrib} min={0} max={25} step={.5} onChange={setContrib} formatVal={fmtPct}/>
+          <Slider label="Employer Match %" value={match} min={0} max={10} step={.5} onChange={setMatch} formatVal={fmtPct} color={T.fern}/>
+          <Slider label="Expected Return %" value={rate} min={4} max={12} step={.5} onChange={setRate} formatVal={fmtPct} color={T.sage}/>
+          <Slider label="Retirement Age" value={retAge} min={55} max={75} onChange={setRetAge} formatVal={v=>`${v} yrs`} color={T.amber}/>
+        </Card>
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <Card glow style={{textAlign:"center"}}><BigStat label={`Balance at ${retAge}`} value={fmtK(balance)} color={T.forest} icon="🌳"/></Card>
+            <Card style={{textAlign:"center"}}><BigStat label="Monthly Income (4% rule)" value={fmt$(income)} color={T.fern} icon="📅"/></Card>
+          </div>
+          <Card>
+            <h4 style={SH.h4}>Growth Over Time</h4>
+            <BarChart data={chartData} color={T.sage}/>
+          </Card>
+          <Card>
+            <h4 style={SH.h4}>What If You Contributed More?</h4>
+            {[["Current Plan",balance,T.mist],["+1% Contribution",plus1,T.fern],["+$50/month",plus50,T.sage],["+$100/month",plus100,T.forest]].map(([l,v,c])=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${T.warm}`}}>
+                <span style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate}}>{l}</span>
+                <div style={{textAlign:"right"}}>
+                  <span style={{fontFamily:"'DM Mono'",fontSize:14,color:c,fontWeight:600}}>{fmtK(v)}</span>
+                  {l!=="Current Plan" && <span style={{display:"block",fontFamily:"'DM Mono'",fontSize:10,color:T.sage}}>+{fmtK(v-balance)}</span>}
+                </div>
+              </div>
+            ))}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// ROTH VS TRADITIONAL
+// ══════════════════════════════════════════
+function RothVsTrad({u}) {
+  const [income,setIncome]=useState(u.salary);
+  const [age,setAge]=useState(u.age);
+  const [future,setFuture]=useState(22);
+  const getBracket=inc=>inc<11600?10:inc<47150?12:inc<100525?22:inc<191950?24:inc<243725?32:35;
+  const now=getBracket(income);
+  let rec="50/50 Mix",recColor=T.amber,reason="";
+  if(age<35&&future>=now){rec="Roth 401k";recColor=T.sage;reason="You're young and likely in a lower bracket now than at peak earnings. Pay taxes today at the lower rate — let it grow tax-free forever.";}
+  else if(future<now){rec="Traditional 401k";recColor=T.fern;reason="Your tax rate is higher now than expected in retirement. Take the deduction today, pay less tax when you withdraw later.";}
+  else{reason="Your current and future brackets are similar. Split for tax diversification and hedge against future uncertainty.";}
+
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>⚖️ Roth vs Traditional</h2>
+      <p style={SH.sub}>The biggest tax decision for your retirement.</p>
+      <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:20}}>
+        <Card>
+          <h4 style={SH.h4}>Your Situation</h4>
+          <Slider label="Current Income" value={income} min={25000} max={500000} step={5000} onChange={setIncome} formatVal={fmt$} color={T.gold}/>
+          <Slider label="Your Age" value={age} min={18} max={65} onChange={setAge} formatVal={v=>`${v}`}/>
+          <div style={{marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <label style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate}}>Current Tax Bracket</label>
+              <span style={{fontFamily:"'DM Mono'",color:T.forest,fontWeight:600}}>{now}%</span>
+            </div>
+            <div style={{background:`${T.mint}50`,borderRadius:8,padding:"8px 12px"}}>
+              <span style={{fontFamily:"'DM Sans'",fontSize:12,color:T.forest}}>Auto-detected from income</span>
+            </div>
+          </div>
+          <div>
+            <label style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate,display:"block",marginBottom:8}}>Expected Future Bracket</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {[10,12,22,24,32,35].map(b=>(
+                <button key={b} onClick={()=>setFuture(b)}
+                  style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${future===b?T.forest:T.warm}`,
+                    background:future===b?T.forest:T.cream,color:future===b?T.cream:T.slate,
+                    fontFamily:"'DM Mono'",fontSize:12,cursor:"pointer",transition:"all .2s"}}>
+                  {b}%
+                </button>
+              ))}
+            </div>
+          </div>
+        </Card>
+
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <Card glow style={{textAlign:"center",padding:32}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,color:T.mist,marginBottom:8}}>Our Recommendation</div>
+            <div style={{fontFamily:"'Playfair Display'",fontSize:40,fontWeight:900,color:recColor}}>{rec}</div>
+            <p style={{fontFamily:"'DM Sans'",fontSize:14,color:T.slate,marginTop:14,lineHeight:1.7,maxWidth:400,margin:"14px auto 0"}}>{reason}</p>
+          </Card>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            {[
+              {title:"Roth 401k",color:T.sage,pts:["Pay taxes NOW","Tax-free withdrawals","Best if rates rise","No RMDs on Roth IRA","Great for young earners"],active:rec.includes("Roth")},
+              {title:"Traditional 401k",color:T.fern,pts:["Tax deduction TODAY","Taxed on withdrawal","Best if rates drop","Lowers taxable income","Great for high earners"],active:rec.includes("Traditional")},
+            ].map(opt=>(
+              <Card key={opt.title} style={{opacity:rec.includes("Mix")?1:opt.active?1:.55,border:opt.active?`2px solid ${opt.color}`:undefined}}>
+                <h4 style={{fontFamily:"'Playfair Display'",color:opt.color,marginBottom:12,fontSize:16}}>{opt.title}</h4>
+                {opt.pts.map(p=><div key={p} style={{fontFamily:"'DM Sans'",fontSize:12,color:T.slate,marginBottom:5}}>✓ {p}</div>)}
+              </Card>
+            ))}
+          </div>
+          <Card>
+            <h4 style={SH.h4}>2024 Contribution Limits</h4>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[["401k (under 50)","$23,000"],["401k catch-up (50+)","$30,500"],["IRA / Roth IRA","$7,000"],["IRA catch-up (50+)","$8,000"]].map(([k,v])=>(
+                <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:T.warm,borderRadius:10}}>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:12,color:T.slate}}>{k}</span>
+                  <span style={{fontFamily:"'DM Mono'",fontSize:12,color:T.forest,fontWeight:600}}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// PORTFOLIO BUILDER
+// ══════════════════════════════════════════
+function Portfolio() {
+  const [risk,setRisk]=useState("moderate");
+  const [age,setAge]=useState(30);
+  const profiles={
+    conservative:{label:"Conservative",emoji:"🛡️",color:T.fern,desc:"Capital preservation with modest growth.",
+      alloc:[{name:"Total Bond Market",ticker:"BND",pct:40},{name:"US Treasury",ticker:"SCHP",pct:20},{name:"Total US Market",ticker:"VTI",pct:25},{name:"International",ticker:"VXUS",pct:15}]},
+    moderate:{label:"Moderate",emoji:"⚖️",color:T.sage,desc:"Balanced growth and stability. Great for 10–20 year horizons.",
+      alloc:[{name:"Total US Market",ticker:"VTI",pct:60},{name:"International",ticker:"VXUS",pct:20},{name:"Total Bond Market",ticker:"BND",pct:15},{name:"REITs",ticker:"VNQ",pct:5}]},
+    aggressive:{label:"Aggressive",emoji:"🚀",color:T.gold,desc:"Maximum long-term growth. Best for investors under 35 with 20+ years.",
+      alloc:[{name:"Total US Market",ticker:"VTI",pct:70},{name:"International",ticker:"VXUS",pct:20},{name:"Small Cap Growth",ticker:"VBK",pct:5},{name:"Bonds",ticker:"BND",pct:5}]},
+  };
+  const ageRec=age<35?"aggressive":age<50?"moderate":"conservative";
+  const p=profiles[risk];
+  const sliceColors=[T.forest,T.sage,T.amber,T.fern,T.gold];
+
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>🧩 Portfolio Builder</h2>
+      <p style={SH.sub}>Simple, low-cost index fund portfolios for any 401k.</p>
+      <Slider label="Your Age" value={age} min={18} max={65} onChange={setAge} formatVal={v=>`${v} yrs`}/>
+      {ageRec!==risk && <Nudge icon="💡" color={T.fern}
+        text={`Based on age ${age}, we suggest the ${profiles[ageRec].label} portfolio`}
+        action="Apply" onAction={()=>setRisk(ageRec)}/>}
+      <div style={{display:"flex",gap:10,marginBottom:20}}>
+        {Object.entries(profiles).map(([key,pr])=>(
+          <button key={key} className="ff-btn" onClick={()=>setRisk(key)}
+            style={{flex:1,padding:"14px 10px",borderRadius:14,border:`2px solid ${risk===key?pr.color:T.warm}`,
+              background:risk===key?pr.color:T.paper,color:risk===key?T.white:T.slate,
+              fontFamily:"'DM Sans'",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+            <div style={{fontSize:22,marginBottom:2}}>{pr.emoji}</div>
+            {pr.label}
+          </button>
+        ))}
+      </div>
+      <p style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate,marginBottom:20}}>{p.desc}</p>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20}}>
+        <Card>
+          <h4 style={SH.h4}>Fund Allocation</h4>
+          {p.alloc.map((f,i)=>(
+            <div key={f.name} style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                <span style={{fontFamily:"'DM Sans'",fontSize:13,color:T.ink}}>{f.name}</span>
+                <span style={{fontFamily:"'DM Mono'",fontSize:13,color:sliceColors[i],fontWeight:600}}>{f.pct}%</span>
+              </div>
+              <div style={{background:T.warm,borderRadius:4,height:6}}>
+                <div style={{width:`${f.pct}%`,background:sliceColors[i],borderRadius:4,height:6,transition:"width .6s ease"}}/>
+              </div>
+              <div style={{fontFamily:"'DM Mono'",fontSize:10,color:T.mist,marginTop:3}}>{f.ticker}</div>
+            </div>
+          ))}
+        </Card>
+        <Card style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+          <h4 style={{...SH.h4,textAlign:"center"}}>Visualization</h4>
+          <Donut slices={p.alloc} size={160}/>
+          <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:4}}>
+            {p.alloc.map((f,i)=>(
+              <div key={f.name} style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:10,height:10,borderRadius:2,background:sliceColors[i]}}/>
+                <span style={{fontFamily:"'DM Sans'",fontSize:11,color:T.slate}}>{f.name}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <h4 style={SH.h4}>Why Index Funds?</h4>
+          {[["📦","Instant diversification","Own thousands of stocks in one ticker"],
+            ["💸","Ultra-low fees","0.03–0.20% vs 1%+ for active funds"],
+            ["📈","Market returns","Outperform 90%+ of active managers long-term"],
+            ["🧾","Tax efficient","Low turnover = fewer taxable events"],
+          ].map(([icon,title,desc])=>(
+            <div key={title} style={{marginBottom:12}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:13,color:T.forest,fontWeight:600}}>{icon} {title}</div>
+              <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist,marginTop:2}}>{desc}</div>
+            </div>
+          ))}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// DEBT GUIDE
+// ══════════════════════════════════════════
+function DebtGuide() {
+  const [debts]=useState([
+    {id:1,name:"Credit Card",rate:22,balance:5000},
+    {id:2,name:"Student Loan",rate:4.5,balance:28000},
+    {id:3,name:"Car Loan",rate:6.5,balance:12000},
+    {id:4,name:"Mortgage",rate:3.2,balance:280000},
+  ]);
+  const MKT=8;
+  const getRec=r=>r>15?{label:"Pay ASAP",color:T.ruby,detail:"Guaranteed better than any investment"}
+    :r>MKT?{label:"Pay first",color:T.amber,detail:"Beats expected market return"}
+    :r>5?{label:"50/50 split",color:T.gold,detail:"Toss-up — split your extra cash"}
+    :{label:"Invest first",color:T.sage,detail:"Market return likely beats this rate"};
+
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>💳 Debt vs Investing</h2>
+      <p style={SH.sub}>Make every extra dollar work as hard as possible.</p>
+      <Card style={{marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+        <div style={{fontFamily:"'DM Sans'",fontSize:14,color:T.slate}}>
+          Benchmark: <strong style={{color:T.forest}}>Expected market return ≈ {MKT}%</strong>
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {[[">15%","Pay ASAP",T.ruby],["8–15%","Pay first",T.amber],["5–8%","Split",T.gold],["<5%","Invest first",T.sage]].map(([rate,label,c])=>(
+            <div key={rate} style={{display:"flex",alignItems:"center",gap:5,background:`${c}18`,borderRadius:8,padding:"5px 10px"}}>
+              <div style={{width:8,height:8,borderRadius:4,background:c}}/>
+              <span style={{fontFamily:"'DM Sans'",fontSize:12,color:c,fontWeight:600}}>{rate} → {label}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card style={{overflowX:"auto",marginBottom:20}}>
+        <table>
+          <thead>
+            <tr>{["Debt","Interest Rate","Balance","Recommendation","Why"].map(h=>(
+              <th key={h} style={{textAlign:"left",color:T.mist,padding:"8px 12px",borderBottom:`1px solid ${T.warm}`,fontWeight:500,fontSize:13}}>{h}</th>
+            ))}</tr>
+          </thead>
+          <tbody>
+            {[...debts].sort((a,b)=>b.rate-a.rate).map(d=>{
+              const rec=getRec(d.rate);
+              return (
+                <tr key={d.id}>
+                  <td style={{padding:"10px 12px",color:T.ink,fontWeight:500,fontSize:13}}>{d.name}</td>
+                  <td style={{padding:"10px 12px",fontFamily:"'DM Mono'",color:d.rate>15?T.ruby:d.rate>MKT?T.amber:T.sage,fontWeight:700,fontSize:13}}>{d.rate}%</td>
+                  <td style={{padding:"10px 12px",fontFamily:"'DM Mono'",color:T.slate,fontSize:13}}>{fmt$(d.balance)}</td>
+                  <td style={{padding:"10px 12px"}}><Tag color={rec.color}>{rec.label}</Tag></td>
+                  <td style={{padding:"10px 12px",color:T.mist,fontSize:12}}>{rec.detail}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
+      <Card>
+        <h4 style={SH.h4}>Decision Framework</h4>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {[[">15%","Pay ASAP — credit cards, payday loans",T.ruby,"Guaranteed return. Nothing beats paying off 22% debt."],
+            ["8–15%","Pay debt before investing heavily",T.amber,"Math favors payoff. Market returns aren't guaranteed at this level."],
+            ["5–8%","Split 50/50 between debt & investing",T.gold,"It's genuinely close. Doing both is psychologically and mathematically sound."],
+            ["<5%","Invest first, pay minimums",T.sage,"Mortgage/student loans: the market historically beats low rates long-term."],
+          ].map(([rate,action,c,why])=>(
+            <div key={rate} style={{display:"flex",gap:14,padding:14,background:`${c}10`,borderRadius:12,border:`1px solid ${c}33`}}>
+              <div style={{fontFamily:"'DM Mono'",color:c,fontWeight:700,minWidth:55,fontSize:13}}>{rate}</div>
+              <div>
+                <div style={{fontFamily:"'DM Sans'",color:c,fontWeight:600,fontSize:13}}>{action}</div>
+                <div style={{fontFamily:"'DM Sans'",color:T.mist,fontSize:12,marginTop:2}}>{why}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// SALARY SIMULATOR
+// ══════════════════════════════════════════
+function SalarySim({u}) {
+  const [startSal,setStartSal]=useState(u.salary);
+  const [raiseRate,setRaiseRate]=useState(3);
+  const [startAge,setStartAge]=useState(u.age);
+  const [contrib,setContrib]=useState(u.contrib);
+  const [match,setMatch]=useState(u.match);
+  const [rate,setRate]=useState(u.rate);
+
+  const yrs=65-startAge;
+  const salAt=y=>startSal*Math.pow(1+raiseRate/100,y);
+
+  let balance=0, currentSal=startSal;
+  for(let y=0;y<yrs;y++){
+    const mo=(currentSal*(contrib+match)/100)/12;
+    balance=(balance+mo*12)*(1+rate/100);
+    currentSal*=(1+raiseRate/100);
+  }
+  const flatBalance=fv((startSal*(contrib+match)/100)/12,yrs,rate);
+
+  const milestones=[5,10,15,20,30].filter(y=>y<=yrs);
+  const chartData=milestones.map(y=>({label:`Age ${startAge+y}`,value:salAt(y)}));
+
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>📊 Salary Growth Simulator</h2>
+      <p style={SH.sub}>Even modest raises dramatically accelerate retirement wealth.</p>
+      <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:20}}>
+        <Card>
+          <h4 style={SH.h4}>Inputs</h4>
+          <Slider label="Starting Salary" value={startSal} min={30000} max={300000} step={5000} onChange={setStartSal} formatVal={fmt$} color={T.gold}/>
+          <Slider label="Annual Raise %" value={raiseRate} min={0} max={10} step={.5} onChange={setRaiseRate} formatVal={fmtPct}/>
+          <Slider label="Current Age" value={startAge} min={18} max={55} onChange={setStartAge} formatVal={v=>`${v} yrs`} color={T.fern}/>
+          <Slider label="Contribution %" value={contrib} min={1} max={20} step={.5} onChange={setContrib} formatVal={fmtPct} color={T.sage}/>
+          <Slider label="Employer Match %" value={match} min={0} max={10} step={.5} onChange={setMatch} formatVal={fmtPct} color={T.amber}/>
+          <Slider label="Investment Return %" value={rate} min={4} max={12} step={.5} onChange={setRate} formatVal={fmtPct} color={T.slate}/>
+        </Card>
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+            <Card style={{textAlign:"center"}}><BigStat label="Salary at 65" value={fmt$(salAt(yrs))} color={T.gold} icon="💵"/></Card>
+            <Card glow style={{textAlign:"center"}}><BigStat label="Retirement Balance" value={fmtK(balance)} color={T.forest} icon="🌳"/></Card>
+            <Card style={{textAlign:"center"}}><BigStat label="vs. No Raises" value={`+${fmtK(balance-flatBalance)}`} color={T.sage} icon="📈"/></Card>
+          </div>
+          <Card>
+            <h4 style={SH.h4}>Salary Milestones</h4>
+            <BarChart data={chartData} color={T.gold}/>
+          </Card>
+          <Card>
+            <h4 style={SH.h4}>Salary at Each Milestone</h4>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:10}}>
+              {milestones.map(y=>(
+                <div key={y} style={{padding:12,background:T.warm,borderRadius:12,textAlign:"center"}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:11,color:T.mist}}>Age {startAge+y}</div>
+                  <div style={{fontFamily:"'DM Mono'",fontSize:14,color:T.forest,fontWeight:700}}>{fmt$(salAt(y))}</div>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:10,color:T.sage}}>+{fmtPct((salAt(y)/startSal-1)*100)}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// NET WORTH
+// ══════════════════════════════════════════
+function NetWorth() {
+  const [assets,setAssets]=useState({checking:8500,savings:15000,k401:42000,roth:12000,brokerage:8000,home:0,other:2000});
+  const [liabs,setLiabs]=useState({studentLoans:28000,car:12000,cards:3200,mortgage:0,other:0});
+  const totalA=Object.values(assets).reduce((a,b)=>a+b,0);
+  const totalL=Object.values(liabs).reduce((a,b)=>a+b,0);
+  const nw=totalA-totalL;
+  const history=[12000,18500,25000,31200,38000,44000,nw];
+
+  const NF=({label,stateKey,obj,setter})=>(
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${T.warm}`}}>
+      <span style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate}}>{label}</span>
+      <input type="number" value={obj[stateKey]}
+        onChange={e=>setter(o=>({...o,[stateKey]:Number(e.target.value)}))}
+        style={{width:110,textAlign:"right"}}/>
+    </div>
+  );
+
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>💰 Net Worth Tracker</h2>
+      <p style={SH.sub}>Your complete financial picture in one place.</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:20}}>
+        <Card style={{textAlign:"center"}}><BigStat icon="📈" label="Total Assets" value={fmt$(totalA)} color={T.sage}/></Card>
+        <Card style={{textAlign:"center"}}><BigStat icon="📉" label="Total Liabilities" value={fmt$(totalL)} color={T.ruby}/></Card>
+        <Card glow style={{textAlign:"center"}}><BigStat icon="⭐" label="Net Worth" value={fmt$(nw)} color={nw>=0?T.forest:T.ruby}/></Card>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+        <Card>
+          <h4 style={{...SH.h4,color:T.sage}}>📈 Assets</h4>
+          <NF label="Checking" stateKey="checking" obj={assets} setter={setAssets}/>
+          <NF label="Savings" stateKey="savings" obj={assets} setter={setAssets}/>
+          <NF label="401k" stateKey="k401" obj={assets} setter={setAssets}/>
+          <NF label="Roth IRA" stateKey="roth" obj={assets} setter={setAssets}/>
+          <NF label="Brokerage" stateKey="brokerage" obj={assets} setter={setAssets}/>
+          <NF label="Home Value" stateKey="home" obj={assets} setter={setAssets}/>
+          <NF label="Other" stateKey="other" obj={assets} setter={setAssets}/>
+          <div style={{textAlign:"right",fontFamily:"'DM Mono'",color:T.sage,fontWeight:700,marginTop:8}}>{fmt$(totalA)}</div>
+        </Card>
+        <Card>
+          <h4 style={{...SH.h4,color:T.ruby}}>📉 Liabilities</h4>
+          <NF label="Student Loans" stateKey="studentLoans" obj={liabs} setter={setLiabs}/>
+          <NF label="Car Loan" stateKey="car" obj={liabs} setter={setLiabs}/>
+          <NF label="Credit Cards" stateKey="cards" obj={liabs} setter={setLiabs}/>
+          <NF label="Mortgage" stateKey="mortgage" obj={liabs} setter={setLiabs}/>
+          <NF label="Other" stateKey="other" obj={liabs} setter={setLiabs}/>
+          <div style={{textAlign:"right",fontFamily:"'DM Mono'",color:T.ruby,fontWeight:700,marginTop:8}}>{fmt$(totalL)}</div>
+          <div style={{marginTop:20}}>
+            <h4 style={SH.h4}>History (Simulated)</h4>
+            <BarChart data={history.map((v,i)=>({label:["Jan","Mar","May","Jul","Sep","Nov","Now"][i],value:v}))} color={T.sage}/>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// MILESTONES
+// ══════════════════════════════════════════
+function Milestones({u}) {
+  const invested=54000;
+  const ms=[
+    {icon:"🌱",title:"First $1,000 Saved",target:1000,reward:"The seed is planted!"},
+    {icon:"🛡️",title:"Emergency Fund Started",target:1,achieved:u.emergFund>1000,reward:"Safety net created"},
+    {icon:"🎯",title:"Full Match Captured",target:1,achieved:u.contrib>=u.matchNeeded,reward:"Free money unlocked!"},
+    {icon:"💎",title:"$10,000 Invested",target:10000,reward:"Five figures!"},
+    {icon:"🔥",title:"Maxed Roth IRA",target:7000,reward:"Tax-free path set"},
+    {icon:"🚀",title:"$50,000 Milestone",target:50000,reward:"Compounding kicks in!"},
+    {icon:"💯",title:"$100,000 Milestone",target:100000,reward:"The magic number!"},
+    {icon:"🏦",title:"6-Month Emergency Fund",target:u.salary/2,achieved:u.emergFund>=u.salary/2,reward:"Fully protected!"},
+    {icon:"⭐",title:"$250,000 Invested",target:250000,reward:"Quarter million!"},
+    {icon:"🏆",title:"First Million!",target:1000000,reward:"You're a millionaire!"},
+  ];
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>🏆 Financial Milestones</h2>
+      <p style={SH.sub}>Every great journey is made of small steps.</p>
+      <Card style={{marginBottom:20,display:"flex",gap:20,alignItems:"center"}}>
+        <div>
+          <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist}}>Total Invested</div>
+          <div style={{fontFamily:"'Playfair Display'",fontSize:32,color:T.forest,fontWeight:700}}>{fmt$(invested)}</div>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist,marginBottom:6}}>
+            Progress to $100k · {Math.round(Math.min(100,invested/1000))}%
+          </div>
+          <div style={{background:T.warm,borderRadius:6,height:10}}>
+            <div style={{width:`${Math.min(100,(invested/100000)*100)}%`,background:`linear-gradient(to right,${T.sage},${T.forest})`,borderRadius:6,height:10,transition:"width 1s ease"}}/>
+          </div>
+        </div>
+      </Card>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:14}}>
+        {ms.map((m,i)=>{
+          const done=m.achieved!==undefined?m.achieved:invested>=m.target;
+          return (
+            <Card key={i} style={{textAlign:"center",opacity:done?1:.5,
+              border:done?`2px solid ${T.sage}`:`1px solid ${T.warm}`,
+              background:done?`${T.sage}12`:T.paper,transform:done?"none":"scale(0.97)"}}>
+              <div style={{fontSize:32,marginBottom:6}}>{m.icon}</div>
+              <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:700,color:done?T.forest:T.mist}}>{m.title}</div>
+              {done?(
+                <div style={{fontFamily:"'DM Sans'",fontSize:11,color:T.sage,marginTop:6}}>✅ {m.reward}</div>
+              ):(
+                <div style={{fontFamily:"'DM Mono'",fontSize:11,color:T.mist,marginTop:6}}>
+                  {typeof m.target==="number"&&m.target>10?fmt$(m.target):"In progress"}
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// LIFESTYLE CALCULATOR
+// ══════════════════════════════════════════
+function Lifestyle({u}) {
+  const [ls,setLs]=useState("comfortable");
+  const [age,setAge]=useState(u.age);
+  const [contrib,setContrib]=useState(u.contrib);
+  const [match,setMatch]=useState(u.match);
+  const [rate,setRate]=useState(u.rate);
+  const [custom,setCustom]=useState(95000);
+
+  const opts={
+    basic:{label:"Basic",emoji:"🏠",annual:45000,color:T.mist,desc:"Cover the essentials comfortably"},
+    comfortable:{label:"Comfortable",emoji:"🌟",annual:80000,color:T.fern,desc:"Travel, dining, leisure — no stress"},
+    luxury:{label:"Luxury",emoji:"🌴",annual:120000,color:T.gold,desc:"First class, premium experiences"},
+    custom:{label:"Custom",emoji:"✏️",annual:custom,color:T.sage,desc:"You define your dream"},
+  };
+  const opt=opts[ls];
+  const target=ls==="custom"?custom:opt.annual;
+  const needed=target/.04;
+  const yrs=65-age;
+  const monthly=(u.salary*(contrib+match)/100)/12;
+  const projected=fv(monthly,yrs,rate);
+  const gap=needed-projected;
+  const r=rate/100/12;
+  const neededMo=needed/((Math.pow(1+r,yrs*12)-1)/r);
+  const extraMo=Math.max(0,neededMo-monthly);
+
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>🌴 Future Lifestyle Calculator</h2>
+      <p style={SH.sub}>Make your retirement tangible and real.</p>
+      <div style={{display:"flex",gap:12,marginBottom:20}}>
+        {Object.entries(opts).map(([key,o])=>(
+          <button key={key} className="ff-btn" onClick={()=>setLs(key)}
+            style={{flex:1,padding:"14px 10px",borderRadius:16,border:`2px solid ${ls===key?o.color:T.warm}`,
+              background:ls===key?`${o.color}18`:T.paper,cursor:"pointer",fontFamily:"'DM Sans'",textAlign:"center"}}>
+            <div style={{fontSize:26}}>{o.emoji}</div>
+            <div style={{fontWeight:700,color:ls===key?o.color:T.ink,marginTop:4,fontSize:13}}>{o.label}</div>
+            {key!=="custom"&&<div style={{fontFamily:"'DM Mono'",fontSize:11,color:T.mist,marginTop:2}}>{fmt$(o.annual)}/yr</div>}
+          </button>
+        ))}
+      </div>
+      {ls==="custom"&&(
+        <Card style={{marginBottom:20}}>
+          <Slider label="Your Custom Annual Income in Retirement" value={custom} min={30000} max={300000} step={5000}
+            onChange={setCustom} formatVal={fmt$} color={T.sage}/>
+        </Card>
+      )}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+        <Card>
+          <Slider label="Current Age" value={age} min={18} max={60} onChange={setAge} formatVal={v=>`${v} yrs`}/>
+          <Slider label="Your Contribution %" value={contrib} min={0} max={25} step={.5} onChange={setContrib} formatVal={fmtPct}/>
+          <Slider label="Employer Match %" value={match} min={0} max={10} step={.5} onChange={setMatch} formatVal={fmtPct} color={T.fern}/>
+          <Slider label="Expected Return %" value={rate} min={4} max={12} step={.5} onChange={setRate} formatVal={fmtPct} color={T.sage}/>
+        </Card>
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <Card glow>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist}}>You need this balance at 65</div>
+            <div style={{fontFamily:"'Playfair Display'",fontSize:36,color:T.forest,fontWeight:700}}>{fmtK(needed)}</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist,marginTop:4}}>To fund {fmt$(target)}/year (4% rule)</div>
+          </Card>
+          <Card style={{background:gap>0?`${T.amber}12`:`${T.sage}12`,border:`1px solid ${gap>0?T.amber:T.sage}`}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist}}>{gap>0?"Shortfall":"Surplus"}</div>
+            <div style={{fontFamily:"'Playfair Display'",fontSize:28,color:gap>0?T.amber:T.sage,fontWeight:700}}>
+              {gap>0?"-":"+"}{fmtK(Math.abs(gap))}
+            </div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist}}>
+              {gap>0?`You'd need ${fmt$(extraMo)}/mo more to close the gap`:"You're on track! 🎉"}
+            </div>
+          </Card>
+          <Card style={{textAlign:"center"}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist,marginBottom:8}}>Projected vs. Target</div>
+            <div style={{display:"flex",height:70,gap:12,alignItems:"flex-end",justifyContent:"center"}}>
+              {[["Projected",projected,T.sage],["Needed",needed,opt.color]].map(([l,v,c])=>{
+                const maxV=Math.max(projected,needed);
+                return (
+                  <div key={l} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center"}}>
+                    <div style={{fontFamily:"'DM Mono'",fontSize:9,color:T.mist}}>{fmtK(v)}</div>
+                    <div style={{width:"100%",background:c,borderRadius:"4px 4px 0 0",height:`${(v/maxV)*60}px`,minHeight:4}}/>
+                    <div style={{fontFamily:"'DM Sans'",fontSize:10,color:T.mist,marginTop:4}}>{l}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// RISK QUIZ
+// ══════════════════════════════════════════
+function RiskQuiz() {
+  const qs=[
+    {q:"Your portfolio drops 30% in a market crash. You...",opts:[
+      {t:"Sell everything immediately",s:1},{t:"Sell some to reduce stress",s:2},
+      {t:"Hold and wait it out",s:3},{t:"Buy more — it's on sale!",s:4}]},
+    {q:"How long until you need this money?",opts:[
+      {t:"Less than 3 years",s:1},{t:"3–5 years",s:2},
+      {t:"5–15 years",s:3},{t:"15+ years",s:4}]},
+    {q:"Your primary investment goal is:",opts:[
+      {t:"Preserve what I have",s:1},{t:"Steady, moderate growth",s:2},
+      {t:"Aggressive long-term growth",s:3},{t:"Max growth, I can handle swings",s:4}]},
+    {q:"If your portfolio lost 20% this year, you'd feel:",opts:[
+      {t:"Sick — I can't sleep",s:1},{t:"Worried but I'd stay the course",s:2},
+      {t:"Uncomfortable but fine",s:3},{t:"Excited to buy more at a discount",s:4}]},
+    {q:"Your income situation is:",opts:[
+      {t:"Unstable / freelance",s:1},{t:"Stable but tight",s:2},
+      {t:"Stable with some extra",s:3},{t:"Strong with significant surplus",s:4}]},
+  ];
+  const [ans,setAns]=useState({});
+  const total=Object.values(ans).reduce((a,b)=>a+b,0);
+  const done=Object.keys(ans).length===qs.length;
+  const profiles=[
+    {label:"Conservative",range:[5,10],alloc:"20% stocks / 80% bonds",color:T.fern,desc:"You prioritize capital preservation. Slow, steady growth keeps you sleeping at night."},
+    {label:"Moderate",range:[11,15],alloc:"60% stocks / 40% bonds",color:T.sage,desc:"Balanced investor. You can handle some volatility in pursuit of solid long-term growth."},
+    {label:"Aggressive",range:[16,20],alloc:"90% stocks / 10% bonds",color:T.gold,desc:"Long time horizon and comfortable with big swings. Maximize for maximum compounding."},
+  ];
+  const profile=done?profiles.find(p=>total>=p.range[0]&&total<=p.range[1])||profiles[1]:null;
+
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>🎲 Risk Tolerance Quiz</h2>
+      <p style={SH.sub}>Discover your investor personality in 5 questions.</p>
+      <div style={{display:"flex",gap:8,marginBottom:20}}>
+        {qs.map((_,i)=>(
+          <div key={i} style={{flex:1,height:4,borderRadius:2,background:ans[i]?T.forest:T.warm,transition:"background .3s"}}/>
+        ))}
+      </div>
+      {qs.map((q,qi)=>(
+        <Card key={qi} style={{marginBottom:14}}>
+          <h4 style={{...SH.h4,marginBottom:14,textTransform:"none",fontSize:14}}>{qi+1}. {q.q}</h4>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {q.opts.map((o,oi)=>{
+              const sel=ans[qi]===o.s;
+              return (
+                <button key={oi} onClick={()=>setAns(a=>({...a,[qi]:o.s}))}
+                  style={{textAlign:"left",padding:"10px 14px",borderRadius:10,cursor:"pointer",
+                    border:`1px solid ${sel?T.forest:T.warm}`,
+                    background:sel?`${T.forest}12`:T.paper,
+                    color:sel?T.forest:T.slate,
+                    fontFamily:"'DM Sans'",fontSize:13,fontWeight:sel?600:400,transition:"all .15s"}}>
+                  {o.t}
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+      ))}
+      {done&&profile&&(
+        <Card glow style={{textAlign:"center",padding:32}}>
+          <Tag color={profile.color} bg={`${profile.color}20`}>Your Risk Profile</Tag>
+          <div style={{fontFamily:"'Playfair Display'",fontSize:42,color:profile.color,fontWeight:900,marginTop:12}}>{profile.label}</div>
+          <div style={{fontFamily:"'DM Mono'",fontSize:16,color:T.forest,marginTop:8}}>{profile.alloc}</div>
+          <p style={{fontFamily:"'DM Sans'",fontSize:14,color:T.slate,marginTop:12,maxWidth:400,margin:"12px auto 0",lineHeight:1.7}}>{profile.desc}</p>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// LEARN
+// ══════════════════════════════════════════
+function Learn() {
+  const [active,setActive]=useState(0);
+  const topics=[
+    {emoji:"📦",title:"What is an ETF?",tag:"2 min",content:"An ETF (Exchange-Traded Fund) is like a basket of stocks you buy in one purchase. VTI, for example, owns a tiny slice of every US publicly traded company. One ticker, thousands of companies, instant diversification. Low fees, no picking required. It's the single best invention in personal finance."},
+    {emoji:"🔮",title:"Compound Interest",tag:"1 min",content:"Einstein called it the eighth wonder of the world. $10,000 invested at 8% for 30 years becomes $100,000 — with zero additional contributions. The secret: returns earn returns. The gap between starting at 22 vs. 32 is worth hundreds of thousands of dollars. Time is your most valuable asset."},
+    {emoji:"🧩",title:"Diversification",tag:"2 min",content:"One stock tanks: you lose everything. One thousand stocks tank: the others catch you. Diversification means spreading investments across companies, sectors, countries, and asset types. Risk gets smoothed out. You'll never hit the top return, but you'll never hit the bottom either. That's the deal worth making."},
+    {emoji:"📉",title:"Market Crashes",tag:"3 min",content:"The S&P 500 drops 20%+ every 3–4 years on average. Every. Single. Time. it has recovered and hit new highs. 2000 dot-com crash: recovered. 2008 financial crisis: recovered. 2020 COVID crash: recovered in 5 months. The only people who actually lost money were those who sold. Stay the course."},
+    {emoji:"🏦",title:"401k vs IRA",tag:"2 min",content:"401k: through your employer, higher limits ($23k/yr), possible match. IRA: individual account, lower limits ($7k/yr), more fund choices, no match. Both offer tax advantages. Best strategy: 401k up to the match → Roth IRA → max 401k → brokerage. Don't skip any step."},
+    {emoji:"💸",title:"Expense Ratios",tag:"2 min",content:"Every fund charges you a tiny % per year to manage it. 1% sounds small. On a $500k portfolio, that's $5,000 per year — gone. Over 30 years, a 1% fee vs 0.03% fee can cost you $200,000+. Always check the expense ratio. Index funds: 0.03–0.20%. Actively managed: 0.5–1.5%. The math is brutal."},
+    {emoji:"📊",title:"Asset Allocation",tag:"2 min",content:"How you split money between stocks and bonds is called asset allocation. A classic rule: 110 minus your age = your stock percentage. At 30: 80% stocks, 20% bonds. At 60: 50/50. Rebalance once a year to stay on target. This single decision determines most of your long-term returns."},
+  ];
+
+  return (
+    <div className="ff-animate">
+      <h2 style={SH.h2}>📚 Investing 101</h2>
+      <p style={SH.sub}>Short, non-boring explanations. No jargon.</p>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
+        {topics.map((t,i)=>(
+          <button key={i} onClick={()=>setActive(i)}
+            style={{padding:"8px 14px",borderRadius:20,cursor:"pointer",fontSize:13,
+              border:`1px solid ${active===i?T.forest:T.warm}`,
+              background:active===i?T.forest:T.paper,
+              color:active===i?T.cream:T.slate,
+              fontFamily:"'DM Sans'",fontWeight:500,transition:"all .2s"}}>
+            {t.emoji} {t.title}
+          </button>
+        ))}
+      </div>
+      <Card glow style={{padding:36,marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+          <span style={{fontSize:48}}>{topics[active].emoji}</span>
+          <Tag color={T.fern}>{topics[active].tag} read</Tag>
+        </div>
+        <h3 style={{fontFamily:"'Playfair Display'",fontSize:26,color:T.forest,fontWeight:700,marginBottom:16}}>
+          {topics[active].title}
+        </h3>
+        <p style={{fontFamily:"'DM Sans'",fontSize:15,color:T.slate,lineHeight:1.8}}>
+          {topics[active].content}
+        </p>
+      </Card>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:12}}>
+        {topics.filter((_,i)=>i!==active).map((t,i)=>(
+          <button key={i} onClick={()=>setActive(topics.indexOf(t))}
+            style={{textAlign:"left",padding:16,borderRadius:14,cursor:"pointer",
+              border:`1px solid ${T.warm}`,background:T.paper,fontFamily:"'DM Sans'",transition:"all .2s"}}>
+            <div style={{fontSize:20,marginBottom:4}}>{t.emoji}</div>
+            <div style={{fontSize:13,fontWeight:600,color:T.forest}}>{t.title}</div>
+            <div style={{fontSize:11,color:T.mist,marginTop:2}}>{t.tag} read</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// MAIN APP
+// ══════════════════════════════════════════
+function App() {
+  const [tab,setTab]=useState("dashboard");
+  const [u,setU]=useState({
+    name:"Alex", age:28, salary:72000,
+    contrib:5, match:4, matchNeeded:6,
+    rate:7, emergFund:6500,
+  });
+
+  const renderPage=()=>{
+    switch(tab){
+      case "dashboard":   return <Dashboard u={u} setTab={setTab}/>;
+      case "match":       return <MatchOptimizer u={u} setU={setU}/>;
+      case "projection":  return <Projection u={u}/>;
+      case "roth":        return <RothVsTrad u={u}/>;
+      case "portfolio":   return <Portfolio/>;
+      case "debt":        return <DebtGuide/>;
+      case "salary":      return <SalarySim u={u}/>;
+      case "networth":    return <NetWorth/>;
+      case "milestones":  return <Milestones u={u}/>;
+      case "lifestyle":   return <Lifestyle u={u}/>;
+      case "risk":        return <RiskQuiz/>;
+      case "learn":       return <Learn/>;
+      default:            return null;
+    }
+  };
+
+  return (
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",background:T.cream}}>
+      {/* HEADER */}
+      <header style={{background:T.paper,borderBottom:`1px solid ${T.warm}`,height:60,
+        display:"flex",alignItems:"center",padding:"0 20px",
+        position:"sticky",top:0,zIndex:50,gap:14,
+        boxShadow:"0 1px 8px rgba(27,67,50,.06)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+          <div style={{width:34,height:34,borderRadius:10,
+            background:`linear-gradient(135deg,${T.forest},${T.sage})`,
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🌳</div>
+          <span style={{fontFamily:"'Playfair Display'",fontSize:20,fontWeight:700,color:T.forest}}>FutureFi</span>
+        </div>
+        <nav style={{display:"flex",gap:2,overflowX:"auto",scrollbarWidth:"none",flex:1,
+          msOverflowStyle:"none"}}>
+          {TABS.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)}
+              className={`ff-tab${tab===t.id?" active":""}`}
+              style={{padding:"6px 11px",borderRadius:10,background:"transparent",
+                color:tab===t.id?T.cream:T.slate,
+                fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,whiteSpace:"nowrap"}}>
+              {t.emoji} {t.label}
+            </button>
+          ))}
+        </nav>
+        <div style={{display:"flex",alignItems:"center",gap:8,
+          background:T.warm,borderRadius:20,padding:"5px 12px",flexShrink:0}}>
+          <div style={{width:26,height:26,borderRadius:13,background:T.forest,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            color:T.cream,fontSize:12,fontWeight:700}}>
+            {u.name[0]}
+          </div>
+          <span style={{fontFamily:"'DM Sans'",fontSize:13,color:T.forest,fontWeight:600}}>{u.name}</span>
+          <span style={{fontFamily:"'DM Mono'",fontSize:11,color:T.mist}}>{fmt$(u.salary)}/yr</span>
+        </div>
+      </header>
+
+      {/* CONTENT */}
+      <main style={{flex:1,maxWidth:1200,width:"100%",margin:"0 auto",padding:"32px 20px"}}>
+        {renderPage()}
+      </main>
+
+      {/* FOOTER */}
+      <footer style={{textAlign:"center",padding:"14px 24px",borderTop:`1px solid ${T.warm}`,background:T.paper}}>
+        <span style={{fontFamily:"'DM Sans'",fontSize:11,color:T.mist}}>
+          FutureFi · For educational purposes only · Not financial advice · Consult a CFP® for personalized guidance
+        </span>
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
