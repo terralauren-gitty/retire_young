@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>FutureFi – Investment & Retirement Planner</title>
+<title>FutureFi – Free Retirement & Investment Planner</title>
+<meta name="description" content="FutureFi is a free, interactive retirement and investment planner. Optimize your 401k match, project your retirement balance, compare Roth vs Traditional, and build a smart portfolio — all in one place." />
+<meta name="keywords" content="401k calculator, retirement planner, roth vs traditional, investment calculator, employer match, compound interest, free financial planner" />
+<meta property="og:title" content="FutureFi – Free Retirement & Investment Planner" />
+<meta property="og:description" content="Never leave free 401k money on the table. Project your retirement, compare Roth vs Traditional, and build a smart portfolio — free, no signup." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="FutureFi – Free Retirement & Investment Planner" />
+<meta name="twitter:description" content="Interactive 401k optimizer, retirement projector, Roth vs Traditional wizard, and more. Free, no signup required." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -16,6 +24,8 @@ input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2p
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#1B4332;cursor:pointer;box-shadow:0 2px 8px rgba(27,67,50,.3);}
 input[type=number]{background:transparent;border:none;border-bottom:2px solid #B7E4C7;color:#1B4332;font-family:'DM Mono',monospace;font-size:15px;width:100%;padding:4px 0;outline:none;}
 input[type=number]:focus{border-bottom-color:#2D6A4F;}
+input[type=text]{background:transparent;border:none;border-bottom:2px solid #B7E4C7;color:#1B4332;font-family:'DM Sans',sans-serif;font-size:16px;width:100%;padding:6px 0;outline:none;}
+input[type=text]:focus{border-bottom-color:#2D6A4F;}
 .ff-tab{transition:all .2s;border:none;cursor:pointer;}
 .ff-tab:hover{background:#EDE6D6 !important;color:#1B4332 !important;}
 .ff-tab.active{background:#1B4332 !important;color:#F5F0E8 !important;}
@@ -28,13 +38,27 @@ input[type=number]:focus{border-bottom-color:#2D6A4F;}
 .ff-opt:hover{border-color:#2D6A4F !important;background:#EDE6D6 !important;}
 .ff-opt.sel{background:#1B4332 !important;border-color:#1B4332 !important;color:#FAF7F2 !important;}
 @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .ff-animate{animation:slideUp .4s ease both;}
+.ff-modal-bg{position:fixed;inset:0;background:rgba(27,67,50,.55);backdrop-filter:blur(6px);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeIn .25s ease;}
+.ff-modal{background:#FAF7F2;border-radius:24px;padding:40px;max-width:520px;width:90%;box-shadow:0 24px 80px rgba(27,67,50,.25);animation:slideUp .35s ease;}
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:#B7E4C7;border-radius:3px;}
 table{border-collapse:collapse;width:100%;}
 button{font-family:'DM Sans',sans-serif;}
 .nudge-close{background:none;border:none;color:#9BA8A3;cursor:pointer;font-size:18px;line-height:1;padding:0 2px;}
+.match-pct-input{background:transparent;border:none;border-bottom:2px solid #52B788;color:#1B4332;font-family:'DM Mono',monospace;font-size:22px;font-weight:700;width:70px;text-align:center;outline:none;padding:2px 0;}
+.match-pct-input:focus{border-bottom-color:#1B4332;}
+@media(max-width:900px){
+  .two-col{grid-template-columns:1fr !important;}
+  .three-col{grid-template-columns:1fr 1fr !important;}
+}
+@media(max-width:600px){
+  .three-col{grid-template-columns:1fr !important;}
+  .ff-modal{padding:28px 20px;}
+  .stat-grid{grid-template-columns:1fr 1fr !important;}
+}
 </style>
 </head>
 <body>
@@ -308,74 +332,156 @@ function Dashboard({u, setTab}) {
 // 401K MATCH OPTIMIZER
 // ══════════════════════════════════════════
 function MatchOptimizer({u, setU}) {
-  const [contrib,setContrib]=useState(u.contrib);
-  const [mRate,setMRate]=useState(100);
-  const [mCap,setMCap]=useState(u.matchNeeded);
-  const [vestYrs,setVestYrs]=useState(3);
-  const [tenure,setTenure]=useState(2);
+  const [contrib, setContrib] = useState(u.contrib);
+  // Employer match: stored as a direct $ percentage of salary (e.g. 4 = employer adds 4% of salary)
+  // We model it as: employer contributes mPct% of your salary, up to mCap% of your salary
+  // Common format: "50% of your contributions up to 6% of salary" → mRate=50, mCap=6
+  // Simpler format: "dollar-for-dollar up to 4%" → mRate=100, mCap=4
+  const [mRate, setMRate] = useState(100);   // employer match rate % (of your contribution)
+  const [mCap, setMCap]   = useState(u.matchNeeded); // cap on YOUR % that gets matched
+  // mCap text input helper
+  const [mCapInput, setMCapInput] = useState(String(u.matchNeeded));
 
-  const sal=u.salary;
-  const yourAnnual=sal*contrib/100;
-  const matchEarned=sal*(Math.min(contrib,mCap)*mRate/100)/100;
-  const maxMatch=sal*mCap*mRate/100/100;
-  const left=maxMatch-matchEarned;
-  const vestPct=Math.min(100,Math.round((tenure/vestYrs)*100));
-  const vested=matchEarned*(vestPct/100);
+  const sal = u.salary;
+  const yourAnnual  = sal * contrib / 100;
+  // matchEarned = salary × min(contrib, mCap) × (mRate/100)
+  const matchEarned = sal * (Math.min(contrib, mCap) * mRate / 100) / 100;
+  const maxMatch    = sal * mCap * mRate / 100 / 100;
+  const left        = Math.max(0, maxMatch - matchEarned);
+  // Effective employer match % of salary
+  const empPctOfSalary = matchEarned / sal * 100;
 
-  const rows=[2,3,4,5,6,8,10,12,15].map(c=>({
-    c,yours:sal*c/100,
-    match:sal*(Math.min(c,mCap)*mRate/100)/100,
-    full:c>=mCap,
+  const rows = [1,2,3,4,5,6,7,8,9,10,12,15].map(c => ({
+    c, yours: sal*c/100,
+    match: sal*(Math.min(c,mCap)*mRate/100)/100,
+    full: c>=mCap,
     get total(){return this.yours+this.match;}
   }));
+
+  const handleMCapInput = (val) => {
+    setMCapInput(val);
+    const n = parseFloat(val);
+    if(!isNaN(n) && n>=0 && n<=25) setMCap(n);
+  };
+
+  // Common match structures for quick-pick
+  const presets = [
+    {label:"50% up to 6%", mRate:50, mCap:6},
+    {label:"100% up to 4%", mRate:100, mCap:4},
+    {label:"100% up to 3%", mRate:100, mCap:3},
+    {label:"Dollar for dollar up to 6%", mRate:100, mCap:6},
+    {label:"No match", mRate:0, mCap:0},
+  ];
 
   return (
     <div className="ff-animate">
       <h2 style={SH.h2}>🎯 401k Match Optimizer</h2>
       <p style={SH.sub}>Never leave free money on the table.</p>
 
-      {left>100?(
-        <div style={{background:`${T.ruby}12`,border:`2px solid ${T.ruby}44`,borderRadius:16,padding:16,marginBottom:20,display:"flex",gap:14,alignItems:"center"}}>
+      {left>100 ? (
+        <div style={{background:`${T.ruby}12`,border:`2px solid ${T.ruby}44`,borderRadius:16,padding:16,marginBottom:20,display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
           <span style={{fontSize:32}}>🚨</span>
           <div>
             <div style={{fontFamily:"'Playfair Display'",color:T.ruby,fontSize:20,fontWeight:700}}>
-              You're leaving {fmt$(left)}/year on the table
+              You're leaving {fmt$(left)}/year on the table!
             </div>
             <div style={{fontFamily:"'DM Sans'",color:T.slate,fontSize:13,marginTop:4}}>
-              Increase your contribution to {mCap}% to unlock the full employer match of {fmt$(maxMatch)}/yr.
+              Contribute at least <strong>{mCap}%</strong> of your salary to unlock the full {fmt$(maxMatch)}/yr match.
             </div>
           </div>
         </div>
-      ):(
+      ) : mRate===0 ? (
+        <div style={{background:`${T.amber}15`,border:`1px solid ${T.amber}`,borderRadius:14,padding:14,marginBottom:20}}>
+          <span style={{color:T.slate,fontFamily:"'DM Sans'",fontWeight:600}}>ℹ️ No employer match set. Enter your match details below to see what you could earn.</span>
+        </div>
+      ) : (
         <div style={{background:`${T.sage}18`,border:`1px solid ${T.sage}`,borderRadius:14,padding:14,marginBottom:20}}>
-          <span style={{color:T.forest,fontFamily:"'DM Sans'",fontWeight:600}}>✅ You're capturing your full employer match — great work!</span>
+          <span style={{color:T.forest,fontFamily:"'DM Sans'",fontWeight:600}}>✅ You're capturing your full employer match of {fmt$(maxMatch)}/yr — great work!</span>
         </div>
       )}
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
+      {/* Quick presets */}
+      <div style={{marginBottom:20}}>
+        <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:.5}}>Common Match Structures — pick yours</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {presets.map(p=>(
+            <button key={p.label} onClick={()=>{setMRate(p.mRate);setMCap(p.mCap);setMCapInput(String(p.mCap));}}
+              style={{padding:"7px 14px",borderRadius:20,cursor:"pointer",fontSize:12,
+                border:`1px solid ${mRate===p.mRate&&mCap===p.mCap?T.forest:T.warm}`,
+                background:mRate===p.mRate&&mCap===p.mCap?T.forest:T.paper,
+                color:mRate===p.mRate&&mCap===p.mCap?T.cream:T.slate,
+                fontFamily:"'DM Sans'",fontWeight:500,transition:"all .2s"}}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}} className="two-col">
         <Card>
           <h4 style={SH.h4}>Your Settings</h4>
+
+          {/* Your contribution slider + input */}
           <Slider label="Your Contribution %" value={contrib} min={0} max={25} step={.5}
             onChange={v=>{setContrib(v);setU(p=>({...p,contrib:v}));}} formatVal={fmtPct}/>
-          <Slider label="Employer Match Rate" value={mRate} min={0} max={200} step={25}
-            onChange={setMRate} formatVal={v=>`${v}% of yours`} color={T.fern}/>
-          <Slider label="Match Cap (your %)" value={mCap} min={1} max={10} step={.5}
-            onChange={setMCap} formatVal={fmtPct} color={T.gold}/>
-          <Slider label="Vesting Period (yrs)" value={vestYrs} min={1} max={6}
-            onChange={setVestYrs} formatVal={v=>`${v} yrs`} color={T.amber}/>
-          <Slider label="Your Tenure (yrs)" value={tenure} min={0} max={vestYrs}
-            onChange={setTenure} formatVal={v=>`${v} yrs`} color={T.sage}/>
+
+          {/* Employer match % of salary - slider + number input side by side */}
+          <div style={{marginBottom:20}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:10}}>
+              <label style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate,fontWeight:500}}>Employer Match Rate</label>
+              <span style={{fontFamily:"'DM Mono'",fontSize:12,color:T.mist}}>{mRate}% of your contribution</span>
+            </div>
+            <input type="range" min={0} max={200} step={25} value={mRate} onChange={e=>setMRate(Number(e.target.value))}/>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+              {[0,25,50,75,100,150,200].map(v=>(
+                <span key={v} style={{fontFamily:"'DM Mono'",fontSize:9,color:T.mist}}>{v}%</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Match cap - slider + editable number input */}
+          <div style={{marginBottom:20}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <label style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate,fontWeight:500}}>
+                Match Cap <span style={{color:T.mist,fontSize:11}}>(max % of your salary matched)</span>
+              </label>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:14,background:T.warm,borderRadius:14,padding:"12px 16px"}}>
+              <input type="range" min={0} max={15} step={.5} value={mCap}
+                onChange={e=>{setMCap(Number(e.target.value));setMCapInput(String(e.target.value));}}
+                style={{flex:1}}/>
+              <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                <input className="match-pct-input" type="number" min={0} max={25} step={.5}
+                  value={mCapInput}
+                  onChange={e=>handleMCapInput(e.target.value)}/>
+                <span style={{fontFamily:"'DM Mono'",fontSize:16,color:T.forest,fontWeight:700}}>%</span>
+              </div>
+            </div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:T.mist,marginTop:6}}>
+              Type a number or drag the slider — e.g. enter 6 if your employer matches up to 6% of your salary
+            </div>
+          </div>
+
+          {/* Salary context */}
+          <div style={{background:`${T.forest}08`,borderRadius:10,padding:"10px 14px"}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.forest}}>
+              Based on your salary of <strong>{fmt$(sal)}</strong>
+            </div>
+            <div style={{fontFamily:"'DM Mono'",fontSize:12,color:T.fern,marginTop:4}}>
+              Max match: {fmt$(maxMatch)}/yr · Effective match: {empPctOfSalary.toFixed(1)}% of salary
+            </div>
+          </div>
         </Card>
 
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <Card>
-            <h4 style={SH.h4}>Breakdown</h4>
+            <h4 style={SH.h4}>Annual Breakdown</h4>
             {[
-              ["Your contribution/yr",fmt$(yourAnnual),T.slate],
-              ["Employer match earned",fmt$(matchEarned),T.fern],
-              [`Vested (${vestPct}%)`,fmt$(vested),T.sage],
-              ["Total invested/yr",fmt$(yourAnnual+matchEarned),T.forest],
-              ["Left on table",fmt$(left),left>0?T.ruby:T.sage],
+              ["Your contribution", fmt$(yourAnnual), T.slate],
+              ["Employer match earned", fmt$(matchEarned), T.fern],
+              ["Total invested/yr", fmt$(yourAnnual+matchEarned), T.forest],
+              ["Left on table", fmt$(left), left>0?T.ruby:T.sage],
+              ["Effective total rate", fmtPct((yourAnnual+matchEarned)/sal*100), T.gold],
             ].map(([l,v,c])=>(
               <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${T.warm}`}}>
                 <span style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate}}>{l}</span>
@@ -383,25 +489,60 @@ function MatchOptimizer({u, setU}) {
               </div>
             ))}
           </Card>
+
+          {/* Visual match meter */}
+          <Card>
+            <h4 style={SH.h4}>Match Meter</h4>
+            <div style={{marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                <span style={{fontFamily:"'DM Sans'",fontSize:12,color:T.slate}}>Your contribution</span>
+                <span style={{fontFamily:"'DM Mono'",fontSize:12,color:T.fern}}>{fmtPct(contrib)}</span>
+              </div>
+              <div style={{background:T.warm,borderRadius:6,height:10}}>
+                <div style={{width:`${Math.min(100,(contrib/20)*100)}%`,background:T.fern,borderRadius:6,height:10,transition:"width .5s ease"}}/>
+              </div>
+            </div>
+            <div style={{marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                <span style={{fontFamily:"'DM Sans'",fontSize:12,color:T.slate}}>Employer match cap</span>
+                <span style={{fontFamily:"'DM Mono'",fontSize:12,color:T.sage}}>{fmtPct(mCap)}</span>
+              </div>
+              <div style={{background:T.warm,borderRadius:6,height:10}}>
+                <div style={{width:`${Math.min(100,(mCap/20)*100)}%`,background:`${T.sage}88`,borderRadius:6,height:10,transition:"width .5s ease"}}/>
+              </div>
+            </div>
+            {left>0 && (
+              <div style={{background:`${T.ruby}12`,borderRadius:10,padding:"8px 12px",marginTop:8}}>
+                <span style={{fontFamily:"'DM Sans'",fontSize:12,color:T.ruby}}>
+                  ↑ Increase by <strong>{(mCap-contrib).toFixed(1)}%</strong> to capture full match
+                </span>
+              </div>
+            )}
+          </Card>
+
           <Card style={{background:`${T.forest}08`}}>
             <div style={{fontFamily:"'DM Sans'",fontSize:13,color:T.forest,fontWeight:600}}>
-              💡 Contribute at least <strong>{mCap}%</strong> to capture <strong>{fmt$(maxMatch)}/yr</strong> free money
+              💡 Contribute at least <strong>{mCap}%</strong> of salary to earn the full <strong>{fmt$(maxMatch)}/yr</strong> in free money
+            </div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist,marginTop:6}}>
+              Over 30 years at 7% returns, that match alone could grow to <strong style={{color:T.forest}}>{fmtK(fv(maxMatch/12,30,7))}</strong>
             </div>
           </Card>
         </div>
       </div>
 
       <Card style={{overflowX:"auto"}}>
-        <h4 style={SH.h4}>Contribution Comparison</h4>
+        <h4 style={SH.h4}>Contribution Comparison Table</h4>
         <table>
           <thead>
-            <tr>{["Your %","Your $/yr","Match $/yr","Total/yr","Status"].map(h=>(
+            <tr>{["Your %","Your $/yr","Employer Match","Total/yr","Status"].map(h=>(
               <th key={h} style={{textAlign:"left",color:T.mist,padding:"8px 12px",borderBottom:`1px solid ${T.warm}`,fontWeight:500,fontSize:13}}>{h}</th>
             ))}</tr>
           </thead>
           <tbody>
             {rows.map(r=>(
-              <tr key={r.c} style={{background:r.c===contrib?`${T.mint}30`:"transparent"}}>
+              <tr key={r.c} style={{background:r.c===contrib?`${T.mint}30`:"transparent",cursor:"pointer"}}
+                onClick={()=>{setContrib(r.c);setU(p=>({...p,contrib:r.c}));}}>
                 <td style={{padding:"10px 12px",color:r.c===contrib?T.forest:T.slate,fontWeight:r.c===contrib?700:400,fontSize:13}}>{r.c}%</td>
                 <td style={{padding:"10px 12px",fontFamily:"'DM Mono'",color:T.fern,fontSize:13}}>{fmt$(r.yours)}</td>
                 <td style={{padding:"10px 12px",fontFamily:"'DM Mono'",color:T.sage,fontSize:13}}>{fmt$(r.match)}</td>
@@ -411,6 +552,7 @@ function MatchOptimizer({u, setU}) {
             ))}
           </tbody>
         </table>
+        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:T.mist,marginTop:10}}>Click any row to select that contribution level.</div>
       </Card>
     </div>
   );
@@ -1132,15 +1274,166 @@ function Learn() {
 }
 
 // ══════════════════════════════════════════
+// ONBOARDING MODAL
+// ══════════════════════════════════════════
+function OnboardingModal({onDone}) {
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState("");
+  const [age, setAge] = useState(28);
+  const [salary, setSalary] = useState(65000);
+  const [contrib, setContrib] = useState(5);
+  const [hasMatch, setHasMatch] = useState(null);
+  const [emergFund, setEmergFund] = useState(5000);
+
+  const finish = () => {
+    onDone({
+      name: name.trim() || "You",
+      age, salary, contrib,
+      match: hasMatch ? 4 : 0,
+      matchNeeded: 6,
+      rate: 7,
+      emergFund,
+    });
+  };
+
+  const steps = [
+    // Step 0 — welcome
+    <div key={0}>
+      <div style={{textAlign:"center",marginBottom:32}}>
+        <div style={{fontSize:52,marginBottom:12}}>🌳</div>
+        <h2 style={{fontFamily:"'Playfair Display'",fontSize:30,color:T.forest,fontWeight:700,marginBottom:8}}>
+          Welcome to FutureFi
+        </h2>
+        <p style={{fontFamily:"'DM Sans'",fontSize:15,color:T.slate,lineHeight:1.7}}>
+          Your free, private retirement & investment planner.<br/>
+          No account. No email. No tracking. Just answers.
+        </p>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:28}}>
+        {[["🎯","401k Match Optimizer"],["📈","Retirement Projector"],["⚖️","Roth vs Traditional"],["🧩","Portfolio Builder"],["💳","Debt vs Investing"],["🏆","Milestone Tracker"]].map(([icon,label])=>(
+          <div key={label} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:T.warm,borderRadius:10}}>
+            <span style={{fontSize:16}}>{icon}</span>
+            <span style={{fontFamily:"'DM Sans'",fontSize:12,color:T.forest,fontWeight:500}}>{label}</span>
+          </div>
+        ))}
+      </div>
+      <button className="ff-btn" onClick={()=>setStep(1)}
+        style={{width:"100%",padding:"14px",background:T.forest,color:T.cream,border:"none",
+          borderRadius:14,fontFamily:"'DM Sans'",fontSize:16,fontWeight:600,cursor:"pointer",
+          boxShadow:"0 4px 20px rgba(27,67,50,.3)"}}>
+        Get Started — Takes 30 seconds →
+      </button>
+      <p style={{fontFamily:"'DM Sans'",fontSize:11,color:T.mist,textAlign:"center",marginTop:10}}>
+        All data stays in your browser. Nothing is stored or shared.
+      </p>
+    </div>,
+
+    // Step 1 — name + age
+    <div key={1}>
+      <h3 style={{fontFamily:"'Playfair Display'",fontSize:22,color:T.forest,marginBottom:6}}>First, tell us about you</h3>
+      <p style={{fontFamily:"'DM Sans'",fontSize:13,color:T.mist,marginBottom:28}}>We'll personalize your dashboard.</p>
+      <div style={{marginBottom:24}}>
+        <label style={{fontFamily:"'DM Sans'",fontSize:13,color:T.slate,fontWeight:500,display:"block",marginBottom:8}}>What should we call you?</label>
+        <input type="text" placeholder="Your first name" value={name} onChange={e=>setName(e.target.value)}
+          style={{fontSize:18,paddingBottom:8,marginBottom:4}}/>
+      </div>
+      <Slider label="Your Age" value={age} min={18} max={65} onChange={setAge} formatVal={v=>`${v} years old`}/>
+      <div style={{display:"flex",gap:10,marginTop:24}}>
+        <button onClick={()=>setStep(0)} style={{flex:1,padding:"12px",background:T.warm,color:T.slate,border:"none",borderRadius:12,fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer"}}>← Back</button>
+        <button className="ff-btn" onClick={()=>setStep(2)}
+          style={{flex:2,padding:"12px",background:T.forest,color:T.cream,border:"none",borderRadius:12,fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+          Next →
+        </button>
+      </div>
+    </div>,
+
+    // Step 2 — salary + contribution
+    <div key={2}>
+      <h3 style={{fontFamily:"'Playfair Display'",fontSize:22,color:T.forest,marginBottom:6}}>Your income & savings</h3>
+      <p style={{fontFamily:"'DM Sans'",fontSize:13,color:T.mist,marginBottom:28}}>Estimates are totally fine here.</p>
+      <Slider label="Annual Salary (before tax)" value={salary} min={25000} max={400000} step={5000} onChange={setSalary} formatVal={fmt$} color={T.gold}/>
+      <Slider label="Current 401k Contribution %" value={contrib} min={0} max={25} step={.5} onChange={setContrib} formatVal={v=>`${v}% → ${fmt$(salary*v/100/12)}/mo`}/>
+      <div style={{display:"flex",gap:10,marginTop:24}}>
+        <button onClick={()=>setStep(1)} style={{flex:1,padding:"12px",background:T.warm,color:T.slate,border:"none",borderRadius:12,fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer"}}>← Back</button>
+        <button className="ff-btn" onClick={()=>setStep(3)}
+          style={{flex:2,padding:"12px",background:T.forest,color:T.cream,border:"none",borderRadius:12,fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+          Next →
+        </button>
+      </div>
+    </div>,
+
+    // Step 3 — employer match + emergency fund
+    <div key={3}>
+      <h3 style={{fontFamily:"'Playfair Display'",fontSize:22,color:T.forest,marginBottom:6}}>Almost done!</h3>
+      <p style={{fontFamily:"'DM Sans'",fontSize:13,color:T.mist,marginBottom:24}}>Two quick questions.</p>
+      <div style={{marginBottom:24}}>
+        <label style={{fontFamily:"'DM Sans'",fontSize:14,color:T.forest,fontWeight:600,display:"block",marginBottom:12}}>
+          Does your employer offer a 401k match?
+        </label>
+        <div style={{display:"flex",gap:10}}>
+          {[["Yes! 🎉", true], ["No / Not sure", false]].map(([label, val])=>(
+            <button key={label} onClick={()=>setHasMatch(val)}
+              style={{flex:1,padding:"14px",borderRadius:12,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,
+                border:`2px solid ${hasMatch===val?T.forest:T.warm}`,
+                background:hasMatch===val?T.forest:T.paper,
+                color:hasMatch===val?T.cream:T.slate,transition:"all .2s"}}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {hasMatch===true && <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.fern,marginTop:8}}>
+          Great! You can fine-tune the exact match % in the 401k Match tab.
+        </div>}
+      </div>
+      <Slider label="Current Emergency Fund" value={emergFund} min={0} max={50000} step={500} onChange={setEmergFund} formatVal={fmt$} color={T.amber}
+        hint={`Target: ${fmt$(salary/12*6)} (6 months of expenses)`}/>
+      <div style={{display:"flex",gap:10,marginTop:24}}>
+        <button onClick={()=>setStep(2)} style={{flex:1,padding:"12px",background:T.warm,color:T.slate,border:"none",borderRadius:12,fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer"}}>← Back</button>
+        <button className="ff-btn" onClick={finish} disabled={hasMatch===null}
+          style={{flex:2,padding:"14px",background:hasMatch===null?T.mist:T.forest,color:T.cream,border:"none",borderRadius:12,
+            fontFamily:"'DM Sans'",fontSize:15,fontWeight:700,cursor:hasMatch===null?"not-allowed":"pointer",
+            boxShadow:hasMatch===null?"none":"0 4px 20px rgba(27,67,50,.3)"}}>
+          See My Dashboard 🚀
+        </button>
+      </div>
+    </div>,
+  ];
+
+  const stepLabels = ["Welcome","About You","Income","Final Step"];
+
+  return (
+    <div className="ff-modal-bg">
+      <div className="ff-modal">
+        {step > 0 && (
+          <div style={{display:"flex",gap:6,marginBottom:24}}>
+            {stepLabels.slice(1).map((l,i)=>(
+              <div key={l} style={{flex:1,height:3,borderRadius:2,background:i<step?T.forest:T.warm,transition:"background .3s"}}/>
+            ))}
+          </div>
+        )}
+        {steps[step]}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
 // MAIN APP
 // ══════════════════════════════════════════
 function App() {
-  const [tab,setTab]=useState("dashboard");
-  const [u,setU]=useState({
-    name:"Alex", age:28, salary:72000,
+  const [tab, setTab] = useState("dashboard");
+  const [showOnboarding, setShowOnboarding] = useState(true);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [u, setU] = useState({
+    name:"", age:28, salary:65000,
     contrib:5, match:4, matchNeeded:6,
-    rate:7, emergFund:6500,
+    rate:7, emergFund:5000,
   });
+
+  const handleOnboardDone = (data) => {
+    setU(prev=>({...prev,...data}));
+    setShowOnboarding(false);
+  };
 
   const renderPage=()=>{
     switch(tab){
@@ -1162,6 +1455,9 @@ function App() {
 
   return (
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",background:T.cream}}>
+
+      {showOnboarding && <OnboardingModal onDone={handleOnboardDone}/>}
+
       {/* HEADER */}
       <header style={{background:T.paper,borderBottom:`1px solid ${T.warm}`,height:60,
         display:"flex",alignItems:"center",padding:"0 20px",
@@ -1172,29 +1468,33 @@ function App() {
             background:`linear-gradient(135deg,${T.forest},${T.sage})`,
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🌳</div>
           <span style={{fontFamily:"'Playfair Display'",fontSize:20,fontWeight:700,color:T.forest}}>FutureFi</span>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:T.mist,marginLeft:2,display:"none"}} className="hide-mobile">Free · Private · No Signup</span>
         </div>
-        <nav style={{display:"flex",gap:2,overflowX:"auto",scrollbarWidth:"none",flex:1,
-          msOverflowStyle:"none"}}>
+        <nav style={{display:"flex",gap:2,overflowX:"auto",scrollbarWidth:"none",flex:1,msOverflowStyle:"none"}}>
           {TABS.map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)}
               className={`ff-tab${tab===t.id?" active":""}`}
-              style={{padding:"6px 11px",borderRadius:10,background:"transparent",
+              style={{padding:"6px 10px",borderRadius:10,background:"transparent",
                 color:tab===t.id?T.cream:T.slate,
                 fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,whiteSpace:"nowrap"}}>
               {t.emoji} {t.label}
             </button>
           ))}
         </nav>
-        <div style={{display:"flex",alignItems:"center",gap:8,
-          background:T.warm,borderRadius:20,padding:"5px 12px",flexShrink:0}}>
+        {/* Profile chip — click to re-open onboarding */}
+        <button onClick={()=>setShowOnboarding(true)}
+          style={{display:"flex",alignItems:"center",gap:8,
+            background:T.warm,borderRadius:20,padding:"5px 12px",
+            border:"none",cursor:"pointer",flexShrink:0,transition:"all .2s"}}
+          title="Edit your profile">
           <div style={{width:26,height:26,borderRadius:13,background:T.forest,
             display:"flex",alignItems:"center",justifyContent:"center",
             color:T.cream,fontSize:12,fontWeight:700}}>
-            {u.name[0]}
+            {u.name ? u.name[0].toUpperCase() : "?"}
           </div>
-          <span style={{fontFamily:"'DM Sans'",fontSize:13,color:T.forest,fontWeight:600}}>{u.name}</span>
-          <span style={{fontFamily:"'DM Mono'",fontSize:11,color:T.mist}}>{fmt$(u.salary)}/yr</span>
-        </div>
+          <span style={{fontFamily:"'DM Sans'",fontSize:13,color:T.forest,fontWeight:600}}>{u.name||"Set up profile"}</span>
+          <span style={{fontFamily:"'DM Mono'",fontSize:11,color:T.mist}}>{u.salary?fmt$(u.salary)+"/yr":""}</span>
+        </button>
       </header>
 
       {/* CONTENT */}
@@ -1203,10 +1503,13 @@ function App() {
       </main>
 
       {/* FOOTER */}
-      <footer style={{textAlign:"center",padding:"14px 24px",borderTop:`1px solid ${T.warm}`,background:T.paper}}>
-        <span style={{fontFamily:"'DM Sans'",fontSize:11,color:T.mist}}>
-          FutureFi · For educational purposes only · Not financial advice · Consult a CFP® for personalized guidance
-        </span>
+      <footer style={{textAlign:"center",padding:"16px 24px",borderTop:`1px solid ${T.warm}`,background:T.paper}}>
+        <div style={{fontFamily:"'DM Sans'",fontSize:12,color:T.mist,marginBottom:4}}>
+          FutureFi is <strong>free</strong>, <strong>private</strong>, and requires <strong>no account</strong>. All data lives only in your browser.
+        </div>
+        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:T.mist}}>
+          For educational purposes only · Not financial advice · Consult a CFP® for personalized guidance
+        </div>
       </footer>
     </div>
   );
@@ -1216,3 +1519,4 @@ ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
+
